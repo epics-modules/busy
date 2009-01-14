@@ -1,0 +1,2 @@
+include "busyRecord.dbd"
+device(busy,CONSTANT,devBusySoft,"Soft Channel")
