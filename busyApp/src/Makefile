@@ -22,8 +22,8 @@ include $(TOP)/configure/RULES
 
 ifdef ASYN
 busySupport.dbd: ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd
-	../cat.pl ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd  busySupport.dbd
+	perl ../cat.pl ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd  busySupport.dbd
 else
 busySupport.dbd: ../busySupport_LOCAL.dbd
-	../cat.pl ../busySupport_LOCAL.dbd busySupport.dbd
+	perl ../cat.pl ../busySupport_LOCAL.dbd busySupport.dbd
 endif
