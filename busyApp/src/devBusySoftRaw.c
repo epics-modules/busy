@@ -6,7 +6,7 @@
 #include <epicsExport.h>
 
 static long init_record();
-static long write();
+static long write_busy();
 
 struct {
    long 	   number;
@@ -14,14 +14,14 @@ struct {
    DEVSUPFUN   init;
    DEVSUPFUN   init_record;
    DEVSUPFUN   get_ioint_info;
-   DEVSUPFUN   write;
+   DEVSUPFUN   write_busy;
 }devBusySoftRaw={
    5,
    NULL,
    NULL,
    init_record,
    NULL,
-   write
+   write_busy
 };
 epicsExportAddress(dset,devBusySoftRaw);
 
@@ -30,7 +30,7 @@ static long init_record(busyRecord *pbusy)
 	return 2; /* dont convert */
 }
 
-static long write(busyRecord *pbusy)
+static long write_busy(busyRecord *pbusy)
 {
 	return dbPutLink(&pbusy->out,DBR_LONG,&pbusy->rval,1);
 }
