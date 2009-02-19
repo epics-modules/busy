@@ -9,6 +9,7 @@ DBDINC += busyRecord
 LIBRARY_IOC = busy
 LIB_SRCS += busyRecord.c
 LIB_SRCS += devBusySoft.c
+LIB_SRCS += devBusySoftRaw.c
 
 ifdef ASYN
 	LIB_SRCS += devBusyAsyn.c
