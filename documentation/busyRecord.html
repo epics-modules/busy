@@ -43,8 +43,8 @@ ca_put() or a CA link.
 
 <P>The BUSY record is essentially a copy of the BO record from EPICS 3.14.8.2,
 with two modifications: (1)the process routine declines to call recGblFwdLink()
-when the VAL field has the value 0; (2) the ZNAM and ONAM strings have the
-default values "Done", and "Busy", respectively.
+when the VAL field has the value 1 ("Busy"); (2) the ZNAM and ONAM strings have
+the default values "Done", and "Busy", respectively.
 
 <P>For version 1.2 of the BUSY module, Ben Franksen added "Raw Soft Channel"
 device support, which allows the BUSY record to write a user configurable
