@@ -1,10 +1,9 @@
 /*************************************************************************\
-* Copyright (c) 2002 The University of Chicago, as Operator of Argonne
+* Copyright (c) 2008 UChicago Argonne LLC, as Operator of Argonne
 *     National Laboratory.
 * Copyright (c) 2002 The Regents of the University of California, as
 *     Operator of Los Alamos National Laboratory.
-* EPICS BASE Versions 3.13.7
-* and higher are distributed subject to a Software License Agreement found
+* EPICS BASE is distributed subject to a Software License Agreement found
 * in file LICENSE that is included with this distribution. 
 \*************************************************************************/
 /* busyRecord.c */
@@ -32,23 +31,24 @@
 #undef  GEN_SIZE_OFFSET
 #include "menuIvoa.h"
 #include "menuOmsl.h"
+#include "menuYesNo.h"
 #include "epicsExport.h"
 
 /* Create RSET - Record Support Entry Table*/
 #define report NULL
 #define initialize NULL
-static long init_record();
-static long process();
+static long init_record(busyRecord *, int);
+static long process(busyRecord *);
 #define special NULL
 #define get_value NULL
 #define cvt_dbaddr NULL
 #define get_array_info NULL
 #define put_array_info NULL
 #define get_units NULL
-static long get_precision();
-static long get_enum_str();
-static long get_enum_strs();
-static long put_enum_str();
+static long get_precision(DBADDR *, long *);
+static long get_enum_str(DBADDR *, char *);
+static long get_enum_strs(DBADDR *, struct dbr_enumStrs *);
+static long put_enum_str(DBADDR *, char *);
 #define get_graphic_double NULL
 #define get_control_double NULL
 #define get_alarm_double NULL
@@ -91,35 +91,33 @@ typedef struct myCallback {
         struct dbCommon *precord;
 }myCallback;
 
-static void checkAlarms();
-static void monitor();
-static long writeValue();
+static void checkAlarms(busyRecord *);
+static void monitor(busyRecord *);
+static long writeValue(busyRecord *);
 
 static void myCallbackFunc(CALLBACK *arg)
 {
     myCallback *pcallback;
-    struct busyRecord *pbusy;
+    busyRecord *prec;
 
     callbackGetUser(pcallback,arg);
-    pbusy=(struct busyRecord *)pcallback->precord;
-    dbScanLock((struct dbCommon *)pbusy);
-    if(pbusy->pact) {
-	if((pbusy->val==1) && (pbusy->high>0)){
+    prec=(busyRecord *)pcallback->precord;
+    dbScanLock((struct dbCommon *)prec);
+    if(prec->pact) {
+	if((prec->val==1) && (prec->high>0)){
 	    myCallback *pcallback;
-	    pcallback = (myCallback *)(pbusy->rpvt);
-            callbackSetPriority(pbusy->prio, &pcallback->callback);
-            callbackRequestDelayed(&pcallback->callback,(double)pbusy->high);
+	    pcallback = (myCallback *)(prec->rpvt);
+            callbackSetPriority(prec->prio, &pcallback->callback);
+            callbackRequestDelayed(&pcallback->callback,(double)prec->high);
 	}
     } else {
-	pbusy->val = 0;
-	dbProcess((struct dbCommon *)pbusy);
+	prec->val = 0;
+	dbProcess((struct dbCommon *)prec);
     }
-    dbScanUnlock((struct dbCommon *)pbusy);
+    dbScanUnlock((struct dbCommon *)prec);
 }
 
-static long init_record(pbusy,pass)
-    struct busyRecord	*pbusy;
-    int pass;
+static long init_record(busyRecord *prec, int pass)
 {
     struct busydset *pdset;
     long status=0;
@@ -128,152 +126,147 @@ static long init_record(pbusy,pass)
     if (pass==0) return(0);
 
     /* busy.siml must be a CONSTANT or a PV_LINK or a DB_LINK */
-    if (pbusy->siml.type == CONSTANT) {
-	recGblInitConstantLink(&pbusy->siml,DBF_USHORT,&pbusy->simm);
+    if (prec->siml.type == CONSTANT) {
+	recGblInitConstantLink(&prec->siml,DBF_USHORT,&prec->simm);
     }
 
-    if(!(pdset = (struct busydset *)(pbusy->dset))) {
-	recGblRecordError(S_dev_noDSET,(void *)pbusy,"busy: init_record");
+    if(!(pdset = (struct busydset *)(prec->dset))) {
+	recGblRecordError(S_dev_noDSET,(void *)prec,"busy: init_record");
 	return(S_dev_noDSET);
     }
     /* must have  write_busy functions defined */
     if( (pdset->number < 5) || (pdset->write_busy == NULL) ) {
-	recGblRecordError(S_dev_missingSup,(void *)pbusy,"busy: init_record");
+	recGblRecordError(S_dev_missingSup,(void *)prec,"busy: init_record");
 	return(S_dev_missingSup);
     }
     /* get the initial value */
-    if (pbusy->dol.type == CONSTANT) {
+    if (prec->dol.type == CONSTANT) {
 	unsigned short ival = 0;
 
-	if(recGblInitConstantLink(&pbusy->dol,DBF_USHORT,&ival)) {
-	    if (ival  == 0)  pbusy->val = 0;
-	    else  pbusy->val = 1;
-	    pbusy->udf = FALSE;
+	if(recGblInitConstantLink(&prec->dol,DBF_USHORT,&ival)) {
+	    if (ival  == 0)  prec->val = 0;
+	    else  prec->val = 1;
+	    prec->udf = FALSE;
 	}
     }
 
     pcallback = (myCallback *)(calloc(1,sizeof(myCallback)));
-    pbusy->rpvt = (void *)pcallback;
+    prec->rpvt = (void *)pcallback;
     callbackSetCallback(myCallbackFunc,&pcallback->callback);
     callbackSetUser(pcallback,&pcallback->callback);
-    pcallback->precord = (struct dbCommon *)pbusy;
+    pcallback->precord = (struct dbCommon *)prec;
 
     if( pdset->init_record ) {
-	status=(*pdset->init_record)(pbusy);
+	status=(*pdset->init_record)(prec);
 	if(status==0) {
-		if(pbusy->rval==0) pbusy->val = 0;
-		else pbusy->val = 1;
-		pbusy->udf = FALSE;
+		if(prec->rval==0) prec->val = 0;
+		else prec->val = 1;
+		prec->udf = FALSE;
 	} else if (status==2) status=0;
     }
     /* convert val to rval */
-    if ( pbusy->mask != 0 ) {
-	if(pbusy->val==0) pbusy->rval = 0;
-	else pbusy->rval = pbusy->mask;
-    } else pbusy->rval = (unsigned long)pbusy->val;
+    if ( prec->mask != 0 ) {
+	if(prec->val==0) prec->rval = 0;
+	else prec->rval = prec->mask;
+    } else prec->rval = (epicsUInt32)prec->val;
     return(status);
 }
 
-static long process(pbusy)
-	struct busyRecord     *pbusy;
+static long process(busyRecord *prec)
 {
-	struct busydset	*pdset = (struct busydset *)(pbusy->dset);
+	struct busydset	*pdset = (struct busydset *)(prec->dset);
 	long		 status=0;
-	unsigned char    pact=pbusy->pact;
+	unsigned char    pact=prec->pact;
 
 	if( (pdset==NULL) || (pdset->write_busy==NULL) ) {
-		pbusy->pact=TRUE;
-		recGblRecordError(S_dev_missingSup,(void *)pbusy,"write_busy");
+		prec->pact=TRUE;
+		recGblRecordError(S_dev_missingSup,(void *)prec,"write_busy");
 		return(S_dev_missingSup);
 	}
-        if (!pbusy->pact) {
-		if ((pbusy->dol.type != CONSTANT) && (pbusy->omsl == menuOmslclosed_loop)){
+        if (!prec->pact) {
+		if ((prec->dol.type != CONSTANT) && (prec->omsl == menuOmslclosed_loop)){
 			unsigned short val;
 
-			pbusy->pact = TRUE;
-			status=dbGetLink(&pbusy->dol,DBR_USHORT, &val,0,0);
-			pbusy->pact = FALSE;
+			prec->pact = TRUE;
+			status=dbGetLink(&prec->dol,DBR_USHORT, &val,0,0);
+			prec->pact = FALSE;
 			if(status==0){
-				pbusy->val = val;
-				pbusy->udf = FALSE;
+				prec->val = val;
+				prec->udf = FALSE;
 			}else {
-       				recGblSetSevr(pbusy,LINK_ALARM,INVALID_ALARM);
+       				recGblSetSevr(prec,LINK_ALARM,INVALID_ALARM);
 			}
 		}
 
 		/* convert val to rval */
-		if ( pbusy->mask != 0 ) {
-			if(pbusy->val==0) pbusy->rval = 0;
-			else pbusy->rval = pbusy->mask;
-		} else pbusy->rval = (unsigned long)pbusy->val;
+		if ( prec->mask != 0 ) {
+			if(prec->val==0) prec->rval = 0;
+			else prec->rval = prec->mask;
+		} else prec->rval = (epicsUInt32)prec->val;
 	}
 
 	/* check for alarms */
-	checkAlarms(pbusy);
+	checkAlarms(prec);
 
-        if (pbusy->nsev < INVALID_ALARM )
-                status=writeValue(pbusy); /* write the new value */
+        if (prec->nsev < INVALID_ALARM )
+                status=writeValue(prec); /* write the new value */
         else {
-                switch (pbusy->ivoa) {
+                switch (prec->ivoa) {
                     case (menuIvoaContinue_normally) :
-                        status=writeValue(pbusy); /* write the new value */
+                        status=writeValue(prec); /* write the new value */
                         break;
                     case (menuIvoaDon_t_drive_outputs) :
                         break;
                     case (menuIvoaSet_output_to_IVOV) :
-                        if(pbusy->pact == FALSE){
+                        if(prec->pact == FALSE){
 				/* convert val to rval */
-                                pbusy->val=pbusy->ivov;
-				if ( pbusy->mask != 0 ) {
-					if(pbusy->val==0) pbusy->rval = 0;
-					else pbusy->rval = pbusy->mask;
-				} else pbusy->rval = (unsigned long)pbusy->val;
+                                prec->val=prec->ivov;
+				if ( prec->mask != 0 ) {
+					if(prec->val==0) prec->rval = 0;
+					else prec->rval = prec->mask;
+				} else prec->rval = (epicsUInt32)prec->val;
 			}
-                        status=writeValue(pbusy); /* write the new value */
+                        status=writeValue(prec); /* write the new value */
                         break;
                     default :
                         status=-1;
-                        recGblRecordError(S_db_badField,(void *)pbusy,
+                        recGblRecordError(S_db_badField,(void *)prec,
                                 "busy:process Illegal IVOA field");
                 }
         }
 
 	/* check if device support set pact */
-	if ( !pact && pbusy->pact ) return(0);
-	pbusy->pact = TRUE;
+	if ( !pact && prec->pact ) return(0);
+	prec->pact = TRUE;
 
-	recGblGetTimeStamp(pbusy);
-	if((pbusy->val==1) && (pbusy->high>0)){
+	recGblGetTimeStamp(prec);
+	if((prec->val==1) && (prec->high>0)){
 	    myCallback *pcallback;
-	    pcallback = (myCallback *)(pbusy->rpvt);
-            callbackSetPriority(pbusy->prio, &pcallback->callback);
-            callbackRequestDelayed(&pcallback->callback,(double)pbusy->high);
+	    pcallback = (myCallback *)(prec->rpvt);
+            callbackSetPriority(prec->prio, &pcallback->callback);
+            callbackRequestDelayed(&pcallback->callback,(double)prec->high);
 	}
 	/* check event list */
-	monitor(pbusy);
+	monitor(prec);
 	/* process the forward scan link record */
-	if (pbusy->val == 0) recGblFwdLink(pbusy);
+	if (prec->val == 0) recGblFwdLink(prec);
 
-	pbusy->pact=FALSE;
+	prec->pact=FALSE;
 	return(status);
 }
 
-static long get_precision(paddr,precision)
-    struct dbAddr *paddr;
-    long	  *precision;
+static long get_precision(DBADDR *paddr, long *precision)
 {
-    struct busyRecord	*pbusy=(struct busyRecord *)paddr->precord;
+    busyRecord	*prec=(busyRecord *)paddr->precord;
 
-    if(paddr->pfield == (void *)&pbusy->high) *precision=2;
+    if(paddr->pfield == (void *)&prec->high) *precision=2;
     else recGblGetPrec(paddr,precision);
     return(0);
 }
 
-static long get_enum_str(paddr,pstring)
-    struct dbAddr *paddr;
-    char	  *pstring;
+static long get_enum_str(DBADDR *paddr, char *pstring)
 {
-    struct busyRecord	*pbusy=(struct busyRecord *)paddr->precord;
+    busyRecord	*prec=(busyRecord *)paddr->precord;
     int                 index;
     unsigned short      *pfield = (unsigned short *)paddr->pfield;
 
@@ -282,127 +275,120 @@ static long get_enum_str(paddr,pstring)
     if(index!=busyRecordVAL) {
 	strcpy(pstring,"Illegal_Value");
     } else if(*pfield==0) {
-	strncpy(pstring,pbusy->znam,sizeof(pbusy->znam));
-	pstring[sizeof(pbusy->znam)] = 0;
+	strncpy(pstring,prec->znam,sizeof(prec->znam));
+	pstring[sizeof(prec->znam)] = 0;
     } else if(*pfield==1) {
-	strncpy(pstring,pbusy->onam,sizeof(pbusy->onam));
-	pstring[sizeof(pbusy->onam)] = 0;
+	strncpy(pstring,prec->onam,sizeof(prec->onam));
+	pstring[sizeof(prec->onam)] = 0;
     } else {
 	strcpy(pstring,"Illegal_Value");
     }
     return(0);
 }
 
-static long get_enum_strs(paddr,pes)
-    struct dbAddr *paddr;
-    struct dbr_enumStrs *pes;
+static long get_enum_strs(DBADDR *paddr,struct dbr_enumStrs *pes)
 {
-    struct busyRecord	*pbusy=(struct busyRecord *)paddr->precord;
+    busyRecord	*prec=(busyRecord *)paddr->precord;
 
     /*SETTING no_str=0 breaks channel access clients*/
     pes->no_str = 2;
     memset(pes->strs,'\0',sizeof(pes->strs));
-    strncpy(pes->strs[0],pbusy->znam,sizeof(pbusy->znam));
-    if(*pbusy->znam!=0) pes->no_str=1;
-    strncpy(pes->strs[1],pbusy->onam,sizeof(pbusy->onam));
-    if(*pbusy->onam!=0) pes->no_str=2;
+    strncpy(pes->strs[0],prec->znam,sizeof(prec->znam));
+    if(*prec->znam!=0) pes->no_str=1;
+    strncpy(pes->strs[1],prec->onam,sizeof(prec->onam));
+    if(*prec->onam!=0) pes->no_str=2;
     return(0);
 }
-static long put_enum_str(paddr,pstring)
-    struct dbAddr *paddr;
-    char          *pstring;
+static long put_enum_str(DBADDR *paddr, char *pstring)
 {
-    struct busyRecord     *pbusy=(struct busyRecord *)paddr->precord;
+    busyRecord     *prec=(busyRecord *)paddr->precord;
 
-    if(strncmp(pstring,pbusy->znam,sizeof(pbusy->znam))==0) pbusy->val = 0;
-    else  if(strncmp(pstring,pbusy->onam,sizeof(pbusy->onam))==0) pbusy->val = 1;
+    if(strncmp(pstring,prec->znam,sizeof(prec->znam))==0) prec->val = 0;
+    else  if(strncmp(pstring,prec->onam,sizeof(prec->onam))==0) prec->val = 1;
     else return(S_db_badChoice);
     return(0);
 }
 
 
-static void checkAlarms(pbusy)
-    struct busyRecord	*pbusy;
+static void checkAlarms(busyRecord *prec)
 {
-	unsigned short val = pbusy->val;
+	unsigned short val = prec->val;
 
         /* check for udf alarm */
-        if(pbusy->udf == TRUE ){
-			recGblSetSevr(pbusy,UDF_ALARM,INVALID_ALARM);
+        if(prec->udf == TRUE ){
+			recGblSetSevr(prec,UDF_ALARM,INVALID_ALARM);
         }
 
         /* check for  state alarm */
         if (val == 0){
-		recGblSetSevr(pbusy,STATE_ALARM,pbusy->zsv);
+		recGblSetSevr(prec,STATE_ALARM,prec->zsv);
         }else{
-		recGblSetSevr(pbusy,STATE_ALARM,pbusy->osv);
+		recGblSetSevr(prec,STATE_ALARM,prec->osv);
         }
 
         /* check for cos alarm */
-	if(val == pbusy->lalm) return;
-	recGblSetSevr(pbusy,COS_ALARM,pbusy->cosv);
-	pbusy->lalm = val;
+	if(val == prec->lalm) return;
+	recGblSetSevr(prec,COS_ALARM,prec->cosv);
+	prec->lalm = val;
         return;
 }
 
-static void monitor(pbusy)
-    struct busyRecord	*pbusy;
+static void monitor(busyRecord *prec)
 {
 	unsigned short	monitor_mask;
 
-        monitor_mask = recGblResetAlarms(pbusy);
+        monitor_mask = recGblResetAlarms(prec);
         /* check for value change */
-        if (pbusy->mlst != pbusy->val){
+        if (prec->mlst != prec->val){
                 /* post events for value change and archive change */
                 monitor_mask |= (DBE_VALUE | DBE_LOG);
                 /* update last value monitored */
-                pbusy->mlst = pbusy->val;
+                prec->mlst = prec->val;
         }
 
         /* send out monitors connected to the value field */
         if (monitor_mask){
-                db_post_events(pbusy,&pbusy->val,monitor_mask);
+                db_post_events(prec,&prec->val,monitor_mask);
         }
-	if(pbusy->oraw!=pbusy->rval) {
-		db_post_events(pbusy,&pbusy->rval,
+	if(prec->oraw!=prec->rval) {
+		db_post_events(prec,&prec->rval,
 		    monitor_mask|DBE_VALUE|DBE_LOG);
-		pbusy->oraw = pbusy->rval;
+		prec->oraw = prec->rval;
 	}
-	if(pbusy->orbv!=pbusy->rbv) {
-		db_post_events(pbusy,&pbusy->rbv,
+	if(prec->orbv!=prec->rbv) {
+		db_post_events(prec,&prec->rbv,
 		    monitor_mask|DBE_VALUE|DBE_LOG);
-		pbusy->orbv = pbusy->rbv;
+		prec->orbv = prec->rbv;
 	}
         return;
 }
 
-static long writeValue(pbusy)
-	struct busyRecord	*pbusy;
+static long writeValue(busyRecord *prec)
 {
 	long		status;
-        struct busydset 	*pdset = (struct busydset *) (pbusy->dset);
+        struct busydset 	*pdset = (struct busydset *) (prec->dset);
 
-	if (pbusy->pact == TRUE){
-		status=(*pdset->write_busy)(pbusy);
+	if (prec->pact == TRUE){
+		status=(*pdset->write_busy)(prec);
 		return(status);
 	}
 
-	status=dbGetLink(&pbusy->siml,DBR_USHORT, &pbusy->simm,0,0);
+	status=dbGetLink(&prec->siml,DBR_USHORT, &prec->simm,0,0);
 	if (status)
 		return(status);
 
-	if (pbusy->simm == NO){
-		status=(*pdset->write_busy)(pbusy);
+	if (prec->simm == menuYesNoNO){
+		status=(*pdset->write_busy)(prec);
 		return(status);
 	}
-	if (pbusy->simm == YES){
-		status=dbPutLink(&(pbusy->siol),DBR_USHORT, &(pbusy->val),1);
+	if (prec->simm == menuYesNoYES){
+		status=dbPutLink(&(prec->siol),DBR_USHORT, &(prec->val),1);
 	} else {
 		status=-1;
-		recGblSetSevr(pbusy,SOFT_ALARM,INVALID_ALARM);
+		recGblSetSevr(prec,SOFT_ALARM,INVALID_ALARM);
 		return(status);
 	}
-        recGblSetSevr(pbusy,SIMM_ALARM,pbusy->sims);
+        recGblSetSevr(prec,SIMM_ALARM,prec->sims);
 
 	return(status);
 }
