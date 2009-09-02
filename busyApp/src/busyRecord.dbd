@@ -63,6 +63,7 @@ recordtype(busy) {
 	}
 	field(MASK,DBF_ULONG) {
 		prompt("Hardware Mask")
+		promptgroup("GUI_OUTPUT")
 		special(SPC_NOMOD)
 		interest(1)
 	}
