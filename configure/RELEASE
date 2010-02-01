@@ -5,10 +5,10 @@
 TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
 
 # ASYN is needed to compile asyn device support
-ASYN=/home/oxygen/MOONEY/epics/synApps/support/asyn/4-10
+ASYN=/corvette/home/epics/devel/asyn/4-13
 
 # EPICS_BASE usually appears last so other apps can override stuff:
-EPICS_BASE=/home/oxygen/MOONEY/epics/base-3.14.10
+EPICS_BASE=/corvette/usr/local/epics/base-3.14.11
 
 #Capfast users may need the following definitions
 #CAPFAST_TEMPLATES=
