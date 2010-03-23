@@ -1,14 +1,14 @@
 
 file {
-	name="/home/oxygen/MOONEY/epics/synApps/support/xxx/xxxApp/op/adl/busyRecordx.adl"
-	version=030103
+	name="/home/oxygen/MOONEY/epics/synAppsSVN/support/busy/busyApp/op/adl/xxBusyRecord.adl"
+	version=030104
 }
 display {
 	object {
 		x=411
 		y=434
-		width=76
-		height=50
+		width=150
+		height=60
 	}
 	clr=14
 	bclr=4
@@ -91,12 +91,42 @@ display {
 	object {
 		x=0
 		y=0
-		width=70
-		height=50
+		width=150
+		height=20
 	}
 	control {
 		chan="$(P)$(R)"
 		clr=14
 		bclr=51
 	}
+	stacking="column"
+}
+"text entry" {
+	object {
+		x=0
+		y=40
+		width=150
+		height=20
+	}
+	control {
+		chan="$(P)$(R).FLNK"
+		clr=14
+		bclr=40
+	}
+	format="string"
+	limits {
+	}
+}
+text {
+	object {
+		x=0
+		y=30
+		width=150
+		height=10
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="FWD LINK"
+	align="horiz. centered"
 }
