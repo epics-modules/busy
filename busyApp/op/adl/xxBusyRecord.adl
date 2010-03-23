@@ -95,7 +95,7 @@ display {
 		height=50
 	}
 	control {
-		chan="$(P)$(B)"
+		chan="$(P)$(R)"
 		clr=14
 		bclr=51
 	}
