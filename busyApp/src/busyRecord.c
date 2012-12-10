@@ -34,6 +34,13 @@
 #include "menuYesNo.h"
 #include "epicsExport.h"
 
+#include	<epicsVersion.h>
+#ifndef EPICS_VERSION_INT
+#define VERSION_INT(V,R,M,P) ( ((V)<<24) | ((R)<<16) | ((M)<<8) | (P))
+#define EPICS_VERSION_INT VERSION_INT(EPICS_VERSION, EPICS_REVISION, EPICS_MODIFICATION, EPICS_PATCH_LEVEL)
+#endif
+#define LT_EPICSBASE(V,R,M,P) (EPICS_VERSION_INT < VERSION_INT((V),(R),(M),(P)))
+
 /* Create RSET - Record Support Entry Table*/
 #define report NULL
 #define initialize NULL
@@ -316,7 +323,11 @@ static void checkAlarms(busyRecord *prec)
 
         /* check for udf alarm */
         if(prec->udf == TRUE ){
+#if LT_EPICSBASE(3,15,0,2)
 			recGblSetSevr(prec,UDF_ALARM,INVALID_ALARM);
+#else
+			recGblSetSevr(prec,UDF_ALARM,prec->udfs);
+#endif
         }
 
         /* check for  state alarm */
