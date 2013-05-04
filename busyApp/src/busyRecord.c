@@ -210,6 +210,12 @@ static long process(busyRecord *prec)
             if(prec->val==0) prec->rval = 0;
             else prec->rval = prec->mask;
         } else prec->rval = (epicsUInt32)prec->val;
+        
+        /* Save the current value of VAL field.  
+         * This is needed when checking whether to call recGblFwdLink below, because
+         * the VAL field might have changed from 0 to 1 when the record was written to with PACT=1 with asynchronous
+         * device support. */
+        prec->oval = prec->val;
     }
 
     /* check for alarms */
@@ -256,7 +262,7 @@ static long process(busyRecord *prec)
     /* check event list */
     monitor(prec);
     /* process the forward scan link record */
-    if (prec->val == 0) recGblFwdLink(prec);
+    if (prec->oval == 0) recGblFwdLink(prec);
 
     prec->pact=FALSE;
     return(status);
