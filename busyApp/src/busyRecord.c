@@ -261,8 +261,12 @@ static long process(busyRecord *prec)
     }
     /* check event list */
     monitor(prec);
-    /* process the forward scan link record */
-    if (prec->oval == 0) recGblFwdLink(prec);
+    /* Process the forward scan link record 
+     * This needs to be done if either val or oval is 0. 
+     * If one is 0 and the other is 1 this means that .RPRO has been set and
+     * we need to process the forward link to be sure that record reprocessing 
+     * occurs and both values get sent to device support. */
+    if ((prec->val == 0) || (prec->oval == 0)) recGblFwdLink(prec);
 
     prec->pact=FALSE;
     return(status);
