@@ -24,11 +24,11 @@ include $(TOP)/configure/RULES
 ifdef ASYN
 busySupport.dbd: ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd
 	$(PERL) -MExtUtils::Command -e cat $^ > $@
-	#perl ../cat.pl ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd  busySupport.dbd
+#	perl ../cat.pl ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd  busySupport.dbd
 else
 busySupport.dbd: ../busySupport_LOCAL.dbd
 	$(PERL) -MExtUtils::Command -e cat $^ > $@
-	#perl ../cat.pl ../busySupport_LOCAL.dbd busySupport.dbd
+#	perl ../cat.pl ../busySupport_LOCAL.dbd busySupport.dbd
 endif
 
 # Parallel build sometimes fails.
