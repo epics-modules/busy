@@ -206,8 +206,9 @@ static void interruptCallback(void *drvPvt, asynUser *pasynUser,
         "%s devAsynBusy::interruptCallback new value=%d\n",
         pr->name, value);
     /* If the current value of the record is 1 and the new value is 0 then post monitors
-     * and call recGblFwdLink */
-    if ((pr->val == 1) && (value == 0)) {
+     * and call recGblFwdLink 
+     * Ignore the callback if pr->pact=1 because a write operation is in progress. */
+    if ((pr->pact == 0) && (pr->val == 1) && (value == 0)) {
         /* If the current value of the record is 1 and the new value is 0 then post monitors
         * and call recGblFwdLink */
         asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
