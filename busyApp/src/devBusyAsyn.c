@@ -183,7 +183,7 @@ static void processCallback(asynUser *pasynUser)
     status = pPvt->pint32->write(pPvt->int32Pvt, pPvt->pasynUser,pPvt->value);
     if(status == asynSuccess) {
         asynPrint(pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devAsynBusy process value %d\n",pr->name,pPvt->value);
+            "%s devAsynBus::processCallback value %d\n",pr->name,pPvt->value);
     } else {
        asynPrint(pasynUser, ASYN_TRACE_ERROR,
            "%s devAsynBusy process error %s\n",
@@ -203,16 +203,12 @@ static void interruptCallback(void *drvPvt, asynUser *pasynUser,
 
     dbScanLock((dbCommon *)pr);
     asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-        "%s devAsynBusy::interruptCallback new value=%d\n",
-        pr->name, value);
-    /* If the current value of the record is 1 and the new value is 0 then post monitors
-     * and call recGblFwdLink 
-     * Ignore the callback if pr->pact=1 because a write operation is in progress. */
-    if ((pr->pact == 0) && (pr->val == 1) && (value == 0)) {
-        /* If the current value of the record is 1 and the new value is 0 then post monitors
-        * and call recGblFwdLink */
+        "%s devAsynBusy::interruptCallback pr->val=%d, new value=%d\n",
+        pr->name, pr->val, value);
+    /* If the current value of the record is different from the new value then post monitors */
+    if (pr->val != value) {
         asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devAsynBusy::interruptCallback 1 to 0 transition, posting monitors and calling recGblFwdLink\n",
+            "%s devAsynBusy::interruptCallback posting monitors\n",
             pr->name);
         pr->val = value;
         monitor_mask = recGblResetAlarms(pr);
@@ -224,7 +220,13 @@ static void interruptCallback(void *drvPvt, asynUser *pasynUser,
         if (monitor_mask){
             db_post_events(pr,&pr->val,monitor_mask);
         }
-        recGblFwdLink(pr);
+        /* If the new value is 0 (1 to 0 transition) then call recGblFwdLink */
+        if (value == 0) {
+            asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
+                "%s devAsynBusy::interruptCallback calling recGblFwdLink\n",
+                pr->name);
+            recGblFwdLink(pr);
+        }
     }
     dbScanUnlock((dbCommon *)pr);
 }
