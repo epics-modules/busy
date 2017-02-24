@@ -10,6 +10,46 @@ content="text/html; charset=iso-8859-1">
 
 <h1 align="center">busy Release Notes</h1>
 
+<h2 align="center">Release 1-7</h2>
+<p>Fix to asyn device support.  There were 2 problems:</p>
+<ul>
+  <li> Problem 1
+    <ul>
+      <li>Busy record has a value of 1 autosave file. (It is not sufficient to have 1 in the .db file, 
+        because device support reads the value from the driver, and that will be 0.</li>
+      <li>Driver does an initial callback with value 0 as soon as iocInit completes, i.e. when interruptAccept=1.</li>
+      <li>Driver gets sent the value 1, but the record has the value 0.</li>
+      <li>This happens because the callback with value 0 occurs after the driver has queued the request to send 1 but
+        before the value is written to the driver.  The 0 to 1 callback which happens later is ignorred by device support.</li>
+      <li>This occurs in devBusyAsyn.c R1-6-1 and earlier.</li>
+    </ul>
+  </li>
+ <li>Problem 2
+   <ul>
+     <li>Driver is configured for asynchronous device support (ASYN_CANBLOCK=1)</li>
+     <li>Busy record sends a value of 1 to driver.</li>
+     <li>Driver immediately does a callback with a value of 0.<li>
+     <li>Busy record is stuck in the 1 state, it ignores the callback value of 0 because PACT=1 when callback occurs.</li>
+     <li>This problem was introduced in devBusyAsyn.c commit a04e121da0acd71226fbe722fbf1b9551b21fe00 which was an attempt
+       to fix problem 1 above.  There was no released version of the busy module with this bug.</li>
+    </ul>
+  </li>
+</ul>
+<p>A test application to demonstrate these problems can be found in the quadEM module in the testAsynBusyApp directory. The test
+application could not be put in the busy module because the problem depends on autosave, and busy does not depend on autosave.</p>
+<p>This release changes the interrupt callback logic.  Previously it was directly calling monitor() and recGblFwdLink.
+It was hard to get the logic right, and the 2 previous versions of this support had bugs discussed above.
+This version just processes the record via scanOnce on every callback.
+Note that this callback logic is not as sophisticated as the standard asyn device support.
+That support handles callback bursts via a ring buffer, and sets the record status and severity
+based on the status passed to the callback.
+In the future we might want to change to using the standard devAsynInt32 device support,
+but that requires making the busy module an optional dependency of asyn.</p>
+<p>This fix has the further advantage of making the record have correct timestamps when callbacks occur, 
+which was not the case with the previous versions.</p>
+
+
+
 <h2 align="center">Release 1-6-1</h2>
 <P>Build failed on Windows because comment character not at beginning of line.
 
