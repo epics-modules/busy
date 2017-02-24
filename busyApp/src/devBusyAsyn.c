@@ -58,6 +58,8 @@ typedef struct devBusyPvt{
     char              *userParam;
     int               addr;
     epicsInt32        value;
+    epicsInt32        callbackValue;
+    int               newCallbackValue;
 }devBusyPvt;
 
 static void processCallback(asynUser *pasynUser);
@@ -199,35 +201,15 @@ static void interruptCallback(void *drvPvt, asynUser *pasynUser,
 {
     devBusyPvt *pPvt = (devBusyPvt *)drvPvt;
     busyRecord *pr = (busyRecord *)pPvt->pr;
-    unsigned short	monitor_mask;
 
+    if (!interruptAccept) return;
     dbScanLock((dbCommon *)pr);
     asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
         "%s devAsynBusy::interruptCallback pr->val=%d, new value=%d\n",
         pr->name, pr->val, value);
-    /* If the current value of the record is different from the new value then post monitors */
-    if (pr->val != value) {
-        asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devAsynBusy::interruptCallback posting monitors\n",
-            pr->name);
-        pr->val = value;
-        monitor_mask = recGblResetAlarms(pr);
-        /* post events for value change and archive change */
-        monitor_mask |= (DBE_VALUE | DBE_LOG);
-        /* update last value monitored */
-        pr->mlst = pr->val;
-        /* send out monitors connected to the value field */
-        if (monitor_mask){
-            db_post_events(pr,&pr->val,monitor_mask);
-        }
-        /* If the new value is 0 (1 to 0 transition) then call recGblFwdLink */
-        if (value == 0) {
-            asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-                "%s devAsynBusy::interruptCallback calling recGblFwdLink\n",
-                pr->name);
-            recGblFwdLink(pr);
-        }
-    }
+    pPvt->callbackValue = value;
+    pPvt->newCallbackValue = 1;
+    scanOnce((dbCommon *)pr);
     dbScanUnlock((dbCommon *)pr);
 }
 
@@ -247,6 +229,14 @@ static long processBusy(busyRecord *pr)
                 "%s devAsynBusy::processCommon, error queuing request %s\n",
                 pr->name,pPvt->pasynUser->errorMessage);
             recGblSetSevr(pr, WRITE_ALARM, INVALID_ALARM);
+        }
+    } else {
+        /* Is the record processing because of a callback? */
+        if (pPvt->newCallbackValue) {
+            pPvt->newCallbackValue = 0;
+            pr->rval = pPvt->callbackValue;
+            pr->val = (pr->rval) ? 1 : 0;
+            pr->udf = 0;
         }
     }
     return 0;
