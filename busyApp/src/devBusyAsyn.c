@@ -185,7 +185,7 @@ static void processCallback(asynUser *pasynUser)
     status = pPvt->pint32->write(pPvt->int32Pvt, pPvt->pasynUser,pPvt->value);
     if(status == asynSuccess) {
         asynPrint(pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devAsynBus::processCallback value %d\n",pr->name,pPvt->value);
+            "%s devAsynBusy::processCallback value %d\n",pr->name,pPvt->value);
     } else {
        asynPrint(pasynUser, ASYN_TRACE_ERROR,
            "%s devAsynBusy process error %s\n",
@@ -218,7 +218,14 @@ static long processBusy(busyRecord *pr)
     devBusyPvt *pPvt = (devBusyPvt *)pr->dpvt;
     int status;
 
-    if(pr->pact == 0) {
+    /* Is the record processing because of a callback? */
+    if (pPvt->newCallbackValue) {
+        pPvt->newCallbackValue = 0;
+        pr->rval = pPvt->callbackValue;
+        pr->val = (pr->rval) ? 1 : 0;
+        pr->udf = 0;
+    }
+    else if(pr->pact == 0) {
         pPvt->value = pr->rval;
         if(pPvt->canBlock) pr->pact = 1;
         status = pasynManager->queueRequest(pPvt->pasynUser, 0, 0);
@@ -229,14 +236,6 @@ static long processBusy(busyRecord *pr)
                 "%s devAsynBusy::processCommon, error queuing request %s\n",
                 pr->name,pPvt->pasynUser->errorMessage);
             recGblSetSevr(pr, WRITE_ALARM, INVALID_ALARM);
-        }
-    } else {
-        /* Is the record processing because of a callback? */
-        if (pPvt->newCallbackValue) {
-            pPvt->newCallbackValue = 0;
-            pr->rval = pPvt->callbackValue;
-            pr->val = (pr->rval) ? 1 : 0;
-            pr->udf = 0;
         }
     }
     return 0;
