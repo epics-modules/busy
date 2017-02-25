@@ -225,7 +225,7 @@ static long processBusy(busyRecord *pr)
                 "%s devBusyAsyn::processBusy, received multiple callbacks (%d) before record processed\n",
                 pr->name, pPvt->newCallbackValue);
         }
-        pPvt->newCallbackValue--;
+        pPvt->newCallbackValue = 0;
         pr->rval = pPvt->callbackValue;
         pr->val = (pr->rval) ? 1 : 0;
         pr->udf = 0;
