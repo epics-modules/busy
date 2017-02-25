@@ -1,4 +1,4 @@
-/* devAsynBusy.c */
+/* devBusyAsyn.c */
 /***********************************************************************e
 * Copyright (c) 2002 The University of Chicago, as Operator of Argonne
 * National Laboratory, and the Regents of the University of
@@ -92,7 +92,7 @@ static long initBusy(busyRecord *pr)
     asynInterface *pasynInterface;
     epicsInt32 value;
 
-    pPvt = callocMustSucceed(1, sizeof(*pPvt), "devAsynBusy::initCommon");
+    pPvt = callocMustSucceed(1, sizeof(*pPvt), "devBusyAsyn::initBusy");
     pr->dpvt = pPvt;
     pPvt->pr = pr;
     /* Create asynUser */
@@ -105,7 +105,7 @@ static long initBusy(busyRecord *pr)
     status = pasynEpicsUtils->parseLink(pasynUser, &pr->out, 
                 &pPvt->portName, &pPvt->addr, &pPvt->userParam);
     if (status != asynSuccess) {
-        printf("%s devAsynBusy::initCommon  %s\n",
+        printf("%s devBusyAsyn::initBusy  %s\n",
                      pr->name, pasynUser->errorMessage);
         goto bad;
     }
@@ -113,13 +113,13 @@ static long initBusy(busyRecord *pr)
     /* Connect to device */
     status = pasynManager->connectDevice(pasynUser, pPvt->portName, pPvt->addr);
     if (status != asynSuccess) {
-        printf("%s devAsynBusy::initCommon connectDevice failed %s\n",
+        printf("%s devBusyAsyn::initBusy connectDevice failed %s\n",
                      pr->name, pasynUser->errorMessage);
         goto bad;
     }
     status = pasynManager->canBlock(pPvt->pasynUser, &pPvt->canBlock);
     if (status != asynSuccess) {
-        printf("%s devAsynBusy::initCommon canBlock failed %s\n",
+        printf("%s devBusyAsyn::initBusy canBlock failed %s\n",
                      pr->name, pasynUser->errorMessage);
         goto bad;
     }
@@ -133,7 +133,7 @@ static long initBusy(busyRecord *pr)
         drvPvt = pasynInterface->drvPvt;
         status = pasynDrvUser->create(drvPvt,pasynUser,pPvt->userParam,0,0);
         if(status!=asynSuccess) {
-            printf("%s devAsynBusy::initCommon drvUserCreate %s\n",
+            printf("%s devBusyAsyn::initBusy drvUserCreate %s\n",
                      pr->name, pasynUser->errorMessage);
             goto bad;
         }
@@ -141,7 +141,7 @@ static long initBusy(busyRecord *pr)
     /* Get interface asynInt32 */
     pasynInterface = pasynManager->findInterface(pasynUser, asynInt32Type, 1);
     if (!pasynInterface) {
-        printf("%s devAsynBusy::initCommon findInterface asynInt32Type %s\n",
+        printf("%s devBusyAsyn::initBusy findInterface asynInt32Type %s\n",
                      pr->name,pasynUser->errorMessage);
         goto bad;
     }
@@ -152,14 +152,14 @@ static long initBusy(busyRecord *pr)
              pPvt->int32Pvt,pPvt->pasynUser,
              interruptCallback,pPvt,&pPvt->registrarPvt);
     if(status!=asynSuccess) {
-       printf("%s devAsynBusy registerInterruptUser %s\n",
+       printf("%s devBusyAsyn registerInterruptUser %s\n",
               pr->name,pPvt->pasynUser->errorMessage);
     }
     /* Initialize synchronous interface */
     status = pasynInt32SyncIO->connect(pPvt->portName, pPvt->addr, 
                  &pPvt->pasynUserSync, pPvt->userParam);
     if (status != asynSuccess) {
-        printf("%s devAsynBusy::initCommon Int32SyncIO->connect failed %s\n",
+        printf("%s devBusyAsyn::initBusy Int32SyncIO->connect failed %s\n",
                pr->name, pPvt->pasynUserSync->errorMessage);
         goto bad;
     }
@@ -185,10 +185,10 @@ static void processCallback(asynUser *pasynUser)
     status = pPvt->pint32->write(pPvt->int32Pvt, pPvt->pasynUser,pPvt->value);
     if(status == asynSuccess) {
         asynPrint(pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devAsynBusy::processCallback value %d\n",pr->name,pPvt->value);
+            "%s devBusyAsyn::processCallback value %d\n",pr->name,pPvt->value);
     } else {
        asynPrint(pasynUser, ASYN_TRACE_ERROR,
-           "%s devAsynBusy process error %s\n",
+           "%s devBusyAsyn process error %s\n",
            pr->name, pasynUser->errorMessage);
        recGblSetSevr(pr, WRITE_ALARM, INVALID_ALARM);
     }
@@ -205,10 +205,10 @@ static void interruptCallback(void *drvPvt, asynUser *pasynUser,
     if (!interruptAccept) return;
     dbScanLock((dbCommon *)pr);
     asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-        "%s devAsynBusy::interruptCallback pr->val=%d, new value=%d\n",
+        "%s devBusyAsyn::interruptCallback pr->val=%d, new value=%d\n",
         pr->name, pr->val, value);
     pPvt->callbackValue = value;
-    pPvt->newCallbackValue = 1;
+    pPvt->newCallbackValue++;
     scanOnce((dbCommon *)pr);
     dbScanUnlock((dbCommon *)pr);
 }
@@ -220,7 +220,12 @@ static long processBusy(busyRecord *pr)
 
     /* Is the record processing because of a callback? */
     if (pPvt->newCallbackValue) {
-        pPvt->newCallbackValue = 0;
+        if (pPvt->newCallbackValue > 1) {
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_WARNING,
+                "%s devBusyAsyn::processBusy, received multiple callbacks (%d) before record processed\n",
+                pr->name, pPvt->newCallbackValue);
+        }
+        pPvt->newCallbackValue--;
         pr->rval = pPvt->callbackValue;
         pr->val = (pr->rval) ? 1 : 0;
         pr->udf = 0;
@@ -233,7 +238,7 @@ static long processBusy(busyRecord *pr)
         if(pPvt->canBlock) pr->pact = 0;
         if(status != asynSuccess) {
             asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
-                "%s devAsynBusy::processCommon, error queuing request %s\n",
+                "%s devBusyAsyn::processBusy, error queuing request %s\n",
                 pr->name,pPvt->pasynUser->errorMessage);
             recGblSetSevr(pr, WRITE_ALARM, INVALID_ALARM);
         }
