@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/epics-modules/busy.svg?branch=master)](https://travis-ci.org/epics-modules/busy)
+
 # busy
 APS BCDA synApps module: busy
 
