@@ -1,5 +1,5 @@
-/* devBusyAsyn.c */
-/***********************************************************************e
+/* devAsynInt32.c */
+/***********************************************************************
 * Copyright (c) 2002 The University of Chicago, as Operator of Argonne
 * National Laboratory, and the Regents of the University of
 * California, as Operator of Los Alamos National Laboratory, and
@@ -8,22 +8,24 @@
 * found in file LICENSE that is included with this distribution.
 ***********************************************************************/
 /*
-    Authors:  Mark Rivers
+    Authors:  Mark Rivers and Marty Kraimer
     05-Sept-2004
 */
 
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <alarm.h>
 #include <recGbl.h>
 #include "epicsMath.h"
 #include <dbAccess.h>
 #include <dbDefs.h>
-#include <dbStaticLib.h>
 #include <dbEvent.h>
+#include <dbStaticLib.h>
 #include <link.h>
+#include <cantProceed.h>
 #include <epicsPrint.h>
 #include <epicsMutex.h>
 #include <epicsThread.h>
@@ -35,38 +37,79 @@
 #include <recSup.h>
 #include <devSup.h>
 
+#include <epicsExport.h>
 #include "asynDriver.h"
 #include "asynDrvUser.h"
 #include "asynInt32.h"
 #include "asynInt32SyncIO.h"
+#include "asynEnum.h"
+#include "asynEnumSyncIO.h"
 #include "asynEpicsUtils.h"
-#include <epicsExport.h>
 
+#define INIT_OK 0
+#define INIT_DO_NOT_CONVERT 2
+#define INIT_ERROR -1
 
-typedef struct devBusyPvt{
-    busyRecord       *pr;
+#define DEFAULT_RING_BUFFER_SIZE 10
+/* We should be getting these from db_access.h, but get errors including that file? */
+#define MAX_ENUM_STATES 16
+#define MAX_ENUM_STRING_SIZE 26
+
+typedef struct ringBufferElement {
+    epicsInt32          value;
+    epicsTimeStamp      time;
+    asynStatus          status;
+    epicsAlarmCondition alarmStatus;
+    epicsAlarmSeverity  alarmSeverity;
+} ringBufferElement;
+
+typedef struct devInt32Pvt{
+    dbCommon          *pr;
     asynUser          *pasynUser;
     asynUser          *pasynUserSync;
+    asynUser          *pasynUserEnumSync;
     asynInt32         *pint32;
     void              *int32Pvt;
     void              *registrarPvt;
     int               canBlock;
-    epicsMutexId      mutexId;
-    asynStatus        status;
-    CALLBACK          callback;
+    epicsInt32        deviceLow;
+    epicsInt32        deviceHigh;
+    epicsMutexId      ringBufferLock;
+    ringBufferElement *ringBuffer;
+    int               ringHead;
+    int               ringTail;
+    int               ringSize;
+    int               ringBufferOverflows;
+    ringBufferElement result;
+    interruptCallbackInt32 interruptCallback;
+    double            sum;
+    int               numAverage;
+    int               bipolar;
+    epicsInt32        mask;
+    epicsInt32        signBit;
+    CALLBACK          processCallback;
+    CALLBACK          outputCallback;
+    int               newOutputCallbackValue;
+    IOSCANPVT         ioScanPvt;
     char              *portName;
     char              *userParam;
     int               addr;
-    epicsInt32        value;
-    epicsInt32        callbackValue;
-    int               newCallbackValue;
-}devBusyPvt;
+    char              *enumStrings[MAX_ENUM_STATES];
+    int               enumValues[MAX_ENUM_STATES];
+    int               enumSeverities[MAX_ENUM_STATES];
+    asynStatus        previousQueueRequestStatus;
+}devInt32Pvt;
 
-static void processCallback(asynUser *pasynUser);
-static void interruptCallback(void *drvPvt, asynUser *pasynUser,
-                              epicsInt32 value);
+static void setEnums(char *outStrings, int *outVals, epicsEnum16 *outSeverities, 
+                     char *inStrings[], int *inVals, int *inSeverities, 
+                     size_t numIn, size_t numOut);
+static long createRingBuffer(dbCommon *pr);
+static void processCallbackOutput(asynUser *pasynUser);
+static void outputCallbackCallback(CALLBACK *pcb);
+static void interruptCallbackOutput(void *drvPvt, asynUser *pasynUser,
+                epicsInt32 value);
 
-static long initBusy(busyRecord *pbusy);
+static long initBusy(busyRecord *pr);
 static long processBusy(busyRecord *pr);
 
 typedef struct analogDset { /* analog  dset */
@@ -80,32 +123,40 @@ typedef struct analogDset { /* analog  dset */
 } analogDset;
 
 analogDset asynBusyInt32 = {
-    5,0,0,initBusy,0,processBusy };
+    5, 0, 0, initBusy, 0, processBusy };
 
 epicsExportAddress(dset, asynBusyInt32);
 
-static long initBusy(busyRecord *pr)
+static long initCommon(dbCommon *pr, DBLINK *plink,
+    userCallback processCallback,interruptCallbackInt32 interruptCallback, interruptCallbackEnum callbackEnum,
+    int maxEnums, char *pFirstString, int *pFirstValue, epicsEnum16 *pFirstSeverity)
 {
-    devBusyPvt *pPvt;
+    devInt32Pvt *pPvt;
     asynStatus status;
     asynUser *pasynUser;
     asynInterface *pasynInterface;
-    epicsInt32 value;
+    epicsUInt32 mask=0;
 
-    pPvt = callocMustSucceed(1, sizeof(*pPvt), "devBusyAsyn::initBusy");
+    pPvt = callocMustSucceed(1, sizeof(*pPvt), "devBusyAsyn::initCommon");
     pr->dpvt = pPvt;
     pPvt->pr = pr;
     /* Create asynUser */
     pasynUser = pasynManager->createAsynUser(processCallback, 0);
     pasynUser->userPvt = pPvt;
     pPvt->pasynUser = pasynUser;
-    pPvt->mutexId = epicsMutexCreate();
+    pPvt->ringBufferLock = epicsMutexCreate();
  
     /* Parse the link to get addr and port */
-    status = pasynEpicsUtils->parseLink(pasynUser, &pr->out, 
+    /* We accept 2 different link syntax (@asyn(...) and @asynMask(...)
+     * If parseLink returns an error then try parseLinkMask. */
+    status = pasynEpicsUtils->parseLink(pasynUser, plink, 
                 &pPvt->portName, &pPvt->addr, &pPvt->userParam);
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initBusy  %s\n",
+        status = pasynEpicsUtils->parseLinkMask(pasynUser, plink, 
+                &pPvt->portName, &pPvt->addr, &mask, &pPvt->userParam);
+    }
+    if (status != asynSuccess) {
+        printf("%s devBusyAsyn::initCommon  %s\n",
                      pr->name, pasynUser->errorMessage);
         goto bad;
     }
@@ -113,13 +164,13 @@ static long initBusy(busyRecord *pr)
     /* Connect to device */
     status = pasynManager->connectDevice(pasynUser, pPvt->portName, pPvt->addr);
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initBusy connectDevice failed %s\n",
+        printf("%s devBusyAsyn::initCommon connectDevice failed %s\n",
                      pr->name, pasynUser->errorMessage);
         goto bad;
     }
     status = pasynManager->canBlock(pPvt->pasynUser, &pPvt->canBlock);
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initBusy canBlock failed %s\n",
+        printf("%s devBusyAsyn::initCommon canBlock failed %s\n",
                      pr->name, pasynUser->errorMessage);
         goto bad;
     }
@@ -133,7 +184,7 @@ static long initBusy(busyRecord *pr)
         drvPvt = pasynInterface->drvPvt;
         status = pasynDrvUser->create(drvPvt,pasynUser,pPvt->userParam,0,0);
         if(status!=asynSuccess) {
-            printf("%s devBusyAsyn::initBusy drvUserCreate %s\n",
+            printf("%s devBusyAsyn::initCommon drvUserCreate %s\n",
                      pr->name, pasynUser->errorMessage);
             goto bad;
         }
@@ -141,107 +192,284 @@ static long initBusy(busyRecord *pr)
     /* Get interface asynInt32 */
     pasynInterface = pasynManager->findInterface(pasynUser, asynInt32Type, 1);
     if (!pasynInterface) {
-        printf("%s devBusyAsyn::initBusy findInterface asynInt32Type %s\n",
+        printf("%s devBusyAsyn::initCommon findInterface asynInt32Type %s\n",
                      pr->name,pasynUser->errorMessage);
         goto bad;
     }
     pPvt->pint32 = pasynInterface->pinterface;
     pPvt->int32Pvt = pasynInterface->drvPvt;
-    /* Register for callbacks when value changes */
-    status = pPvt->pint32->registerInterruptUser(
-             pPvt->int32Pvt,pPvt->pasynUser,
-             interruptCallback,pPvt,&pPvt->registrarPvt);
-    if(status!=asynSuccess) {
-       printf("%s devBusyAsyn registerInterruptUser %s\n",
-              pr->name,pPvt->pasynUser->errorMessage);
-    }
+    scanIoInit(&pPvt->ioScanPvt);
+    pPvt->interruptCallback = interruptCallback;
     /* Initialize synchronous interface */
     status = pasynInt32SyncIO->connect(pPvt->portName, pPvt->addr, 
                  &pPvt->pasynUserSync, pPvt->userParam);
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initBusy Int32SyncIO->connect failed %s\n",
+        printf("%s devBusyAsyn::initCommon Int32SyncIO->connect failed %s\n",
                pr->name, pPvt->pasynUserSync->errorMessage);
         goto bad;
     }
+    /* Initialize asynEnum interfaces */
+    pasynInterface = pasynManager->findInterface(pPvt->pasynUser,asynEnumType,1);
+    if (pasynInterface && (maxEnums > 0)) {
+        size_t numRead;
+        asynEnum *pasynEnum = pasynInterface->pinterface;
+        void *registrarPvt;
+        status = pasynEnumSyncIO->connect(pPvt->portName, pPvt->addr, 
+                 &pPvt->pasynUserEnumSync, pPvt->userParam);
+        if (status != asynSuccess) {
+            printf("%s devBusyAsyn::initCommon EnumSyncIO->connect failed %s\n",
+                   pr->name, pPvt->pasynUserEnumSync->errorMessage);
+            goto bad;
+        }
+        status = pasynEnumSyncIO->read(pPvt->pasynUserEnumSync,
+                    pPvt->enumStrings, pPvt->enumValues, pPvt->enumSeverities, maxEnums, 
+                    &numRead, pPvt->pasynUser->timeout);
+        if (status == asynSuccess) {
+            setEnums(pFirstString, pFirstValue, pFirstSeverity, 
+                     pPvt->enumStrings, pPvt->enumValues,  pPvt->enumSeverities, numRead, maxEnums);
+        }
+        status = pasynEnum->registerInterruptUser(
+           pasynInterface->drvPvt, pPvt->pasynUser,
+           callbackEnum, pPvt, &registrarPvt);
+        if(status!=asynSuccess) {
+            printf("%s devBusyAsyn enum registerInterruptUser %s\n",
+                   pr->name,pPvt->pasynUser->errorMessage);
+        }
+    }
+    /* If interruptCallback is not NULL then register for callbacks */
+    if (interruptCallback) {
+        status = createRingBuffer(pr);
+        if (status!=asynSuccess) goto bad;
+        status = pPvt->pint32->registerInterruptUser(
+           pPvt->int32Pvt,pPvt->pasynUser,
+           pPvt->interruptCallback,pPvt,&pPvt->registrarPvt);
+        if (status!=asynSuccess) {
+            printf("%s devBusyAsyn::initRecord error calling registerInterruptUser %s\n",
+                   pr->name,pPvt->pasynUser->errorMessage);
+        }
+        /* Initialize the interrupt callback */
+        callbackSetCallback(outputCallbackCallback, &pPvt->outputCallback);
+        callbackSetPriority(pr->prio, &pPvt->outputCallback);
+        callbackSetUser(pPvt, &pPvt->outputCallback);
+    }
+    return INIT_OK;
+bad:
+    recGblSetSevr(pr,LINK_ALARM,INVALID_ALARM);
+    pr->pact=1;
+    return INIT_ERROR;
+}
+
+static long createRingBuffer(dbCommon *pr)
+{
+    devInt32Pvt *pPvt = (devInt32Pvt *)pr->dpvt;
+    asynStatus status;
+    const char *sizeString;
+    
+    if (!pPvt->ringBuffer) {
+        DBENTRY *pdbentry = dbAllocEntry(pdbbase);
+        pPvt->ringSize = DEFAULT_RING_BUFFER_SIZE;
+        status = dbFindRecord(pdbentry, pr->name);
+        if (status) {
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
+                "%s devBusyAsyn::createRingBufffer error finding record\n",
+                pr->name);
+            return -1;
+        }
+        sizeString = dbGetInfo(pdbentry, "asyn:FIFO");
+        if (sizeString) pPvt->ringSize = atoi(sizeString);
+        pPvt->ringBuffer = callocMustSucceed(pPvt->ringSize+1, sizeof *pPvt->ringBuffer, "devBusyAsyn::createRingBuffer");
+    }
+    return asynSuccess;
+}
+
+static void setEnums(char *outStrings, int *outVals, epicsEnum16 *outSeverities, char *inStrings[], int *inVals, int *inSeverities, 
+                     size_t numIn, size_t numOut)
+{
+    size_t i;
+    
+    for (i=0; i<numOut; i++) {
+        if (outStrings) outStrings[i*MAX_ENUM_STRING_SIZE] = '\0';
+        if (outVals) outVals[i] = 0;
+        if (outSeverities) outSeverities[i] = 0;
+    }
+    for (i=0; (i<numIn && i<numOut); i++) {
+        if (outStrings) strncpy(&outStrings[i*MAX_ENUM_STRING_SIZE], inStrings[i], MAX_ENUM_STRING_SIZE);
+        if (outVals) outVals[i] = inVals[i];
+        if (outSeverities) outSeverities[i] = inSeverities[i];
+    }
+}
+
+static void processCallbackOutput(asynUser *pasynUser)
+{
+    devInt32Pvt *pPvt = (devInt32Pvt *)pasynUser->userPvt;
+    dbCommon *pr = pPvt->pr;
+
+    pPvt->result.status = pPvt->pint32->write(pPvt->int32Pvt, pPvt->pasynUser,pPvt->result.value);
+    pPvt->result.time = pPvt->pasynUser->timestamp;
+    pPvt->result.alarmStatus = pPvt->pasynUser->alarmStatus;
+    pPvt->result.alarmSeverity = pPvt->pasynUser->alarmSeverity;
+    if(pPvt->result.status == asynSuccess) {
+        asynPrint(pasynUser, ASYN_TRACEIO_DEVICE,
+            "%s devBusyAsyn process value %d\n",pr->name,pPvt->result.value);
+    } else {
+       asynPrint(pasynUser, ASYN_TRACE_ERROR,
+           "%s devBusyAsyn process error %s\n",
+           pr->name, pasynUser->errorMessage);
+    }
+    if(pr->pact) callbackRequestProcessCallback(&pPvt->processCallback,pr->prio,pr);
+}
+
+
+static void interruptCallbackOutput(void *drvPvt, asynUser *pasynUser,
+                epicsInt32 value)
+{
+    devInt32Pvt *pPvt = (devInt32Pvt *)drvPvt;
+    dbCommon *pr = pPvt->pr;
+    ringBufferElement *rp;
+
+    if (pPvt->mask) {
+        value &= pPvt->mask;
+        if (pPvt->bipolar && (value & pPvt->signBit)) value |= ~pPvt->mask;
+    }
+    asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
+        "%s devBusyAsyn::interruptCallbackOutput new value=%d\n",
+        pr->name, value);
+    if (!interruptAccept) return;
+    epicsMutexLock(pPvt->ringBufferLock);
+    rp = &pPvt->ringBuffer[pPvt->ringHead];
+    rp->value = value;
+    rp->time = pasynUser->timestamp;
+    rp->status = pasynUser->auxStatus;
+    rp->alarmStatus = pasynUser->alarmStatus;
+    rp->alarmSeverity = pasynUser->alarmSeverity;
+    pPvt->ringHead = (pPvt->ringHead==pPvt->ringSize) ? 0 : pPvt->ringHead+1;
+    if (pPvt->ringHead == pPvt->ringTail) {
+        pPvt->ringTail = (pPvt->ringTail==pPvt->ringSize) ? 0 : pPvt->ringTail+1;
+        pPvt->ringBufferOverflows++;
+    } else {
+        callbackRequest(&pPvt->outputCallback);
+    }
+    epicsMutexUnlock(pPvt->ringBufferLock);
+}
+
+static void outputCallbackCallback(CALLBACK *pcb)
+{
+    devInt32Pvt *pPvt;
+    callbackGetUser(pPvt, pcb);
+    dbCommon *pr = pPvt->pr;
+    struct rset *prset = (struct rset *)pr->rset;
+
+    dbScanLock(pr);
+    pPvt->newOutputCallbackValue = 1;
+    (prset->process)(pr);
+    pPvt->newOutputCallbackValue = 0;
+    dbScanUnlock(pr);
+}
+
+static void interruptCallbackEnumBusy(void *drvPvt, asynUser *pasynUser,
+                char *strings[], int values[], int severities[], size_t nElements)
+{
+    devInt32Pvt *pPvt = (devInt32Pvt *)drvPvt;
+    busyRecord *pr = (busyRecord *)pPvt->pr;
+
+    if (!interruptAccept) return;
+    dbScanLock((dbCommon*)pr);
+    setEnums((char*)&pr->znam, NULL, &pr->zsv, 
+             strings, NULL, severities, nElements, 2);
+    db_post_events(pr, &pr->val, DBE_PROPERTY);
+    dbScanUnlock((dbCommon*)pr);
+}
+
+static int getCallbackValue(devInt32Pvt *pPvt)
+{
+    int ret = 0;
+    epicsMutexLock(pPvt->ringBufferLock);
+    if (pPvt->ringTail != pPvt->ringHead) {
+        if (pPvt->ringBufferOverflows > 0) {
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_WARNING,
+                "%s devBusyAsyn getCallbackValue warning, %d ring buffer overflows\n",
+                                    pPvt->pr->name, pPvt->ringBufferOverflows);
+            pPvt->ringBufferOverflows = 0;
+        }
+        pPvt->result = pPvt->ringBuffer[pPvt->ringTail];
+        pPvt->ringTail = (pPvt->ringTail==pPvt->ringSize) ? 0 : pPvt->ringTail+1;
+        asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
+            "%s devBusyAsyn::getCallbackValue from ringBuffer value=%d\n",
+                                            pPvt->pr->name,pPvt->result.value);
+        ret = 1;
+    }
+    epicsMutexUnlock(pPvt->ringBufferLock);
+    return ret;
+}
+
+static void reportQueueRequestStatus(devInt32Pvt *pPvt, asynStatus status)
+{
+    if (status != asynSuccess) pPvt->result.status = status;
+    if (pPvt->previousQueueRequestStatus != status) {
+        pPvt->previousQueueRequestStatus = status;
+        if (status == asynSuccess) {
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
+                "%s devBusyAsyn queueRequest status returned to normal\n", 
+                pPvt->pr->name);
+        } else {
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
+                "%s devBusyAsyn queueRequest %s\n", 
+                pPvt->pr->name,pPvt->pasynUser->errorMessage);
+        }
+    }
+}
+
+
+static long initBusy(busyRecord *pr)
+{
+    devInt32Pvt *pPvt;
+    int status;
+    epicsInt32 value;
+
+    status = initCommon((dbCommon *)pr,&pr->out,
+        processCallbackOutput,interruptCallbackOutput, interruptCallbackEnumBusy,
+        2, (char*)&pr->znam, NULL, &pr->zsv);
+    if (status != INIT_OK) return status;
+    pPvt = pr->dpvt;
     /* Read the current value from the device */
     status = pasynInt32SyncIO->read(pPvt->pasynUserSync,
                       &value, pPvt->pasynUser->timeout);
     if (status == asynSuccess) {
         pr->rval = value;
-        return 0;
+        return INIT_OK;
     }
-    return 2;
-bad:
-   pr->pact=1;
-   return 0;
-}
-
-static void processCallback(asynUser *pasynUser)
-{
-    devBusyPvt *pPvt = (devBusyPvt *)pasynUser->userPvt;
-    busyRecord *pr = pPvt->pr;
-    int status=asynSuccess;
-
-    status = pPvt->pint32->write(pPvt->int32Pvt, pPvt->pasynUser,pPvt->value);
-    if(status == asynSuccess) {
-        asynPrint(pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devBusyAsyn::processCallback value %d\n",pr->name,pPvt->value);
-    } else {
-       asynPrint(pasynUser, ASYN_TRACE_ERROR,
-           "%s devBusyAsyn process error %s\n",
-           pr->name, pasynUser->errorMessage);
-       recGblSetSevr(pr, WRITE_ALARM, INVALID_ALARM);
-    }
-    if(pr->pact) callbackRequestProcessCallback(&pPvt->callback,pr->prio,pr);
-}
-
-
-static void interruptCallback(void *drvPvt, asynUser *pasynUser,
-                epicsInt32 value)
-{
-    devBusyPvt *pPvt = (devBusyPvt *)drvPvt;
-    busyRecord *pr = (busyRecord *)pPvt->pr;
-
-    if (!interruptAccept) return;
-    dbScanLock((dbCommon *)pr);
-    asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-        "%s devBusyAsyn::interruptCallback pr->val=%d, new value=%d\n",
-        pr->name, pr->val, value);
-    pPvt->callbackValue = value;
-    pPvt->newCallbackValue++;
-    scanOnce((dbCommon *)pr);
-    dbScanUnlock((dbCommon *)pr);
+    return INIT_DO_NOT_CONVERT;
 }
 
 static long processBusy(busyRecord *pr)
 {
-    devBusyPvt *pPvt = (devBusyPvt *)pr->dpvt;
+    devInt32Pvt *pPvt = (devInt32Pvt *)pr->dpvt;
     int status;
 
-    /* Is the record processing because of a callback? */
-    if (pPvt->newCallbackValue) {
-        if (pPvt->newCallbackValue > 1) {
-            asynPrint(pPvt->pasynUser, ASYN_TRACE_WARNING,
-                "%s devBusyAsyn::processBusy, received multiple callbacks (%d) before record processed\n",
-                pr->name, pPvt->newCallbackValue);
+    if(pPvt->newOutputCallbackValue && getCallbackValue(pPvt)) {
+        /* We got a callback from the driver */
+        if (pPvt->result.status == asynSuccess) {
+            pr->rval = pPvt->result.value;
+            pr->val = (pr->rval) ? 1 : 0;
+            pr->udf = 0;
         }
-        pPvt->newCallbackValue = 0;
-        pr->rval = pPvt->callbackValue;
-        pr->val = (pr->rval) ? 1 : 0;
-        pr->udf = 0;
-    }
-    else if(pr->pact == 0) {
-        pPvt->value = pr->rval;
+    } else if(pr->pact == 0) {
+        pPvt->result.value = pr->rval;
         if(pPvt->canBlock) pr->pact = 1;
         status = pasynManager->queueRequest(pPvt->pasynUser, 0, 0);
         if((status==asynSuccess) && pPvt->canBlock) return 0;
         if(pPvt->canBlock) pr->pact = 0;
-        if(status != asynSuccess) {
-            asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
-                "%s devBusyAsyn::processBusy, error queuing request %s\n",
-                pr->name,pPvt->pasynUser->errorMessage);
-            recGblSetSevr(pr, WRITE_ALARM, INVALID_ALARM);
-        }
+        reportQueueRequestStatus(pPvt, status);
     }
-    return 0;
+    pasynEpicsUtils->asynStatusToEpicsAlarm(pPvt->result.status, 
+                                            WRITE_ALARM, &pPvt->result.alarmStatus,
+                                            INVALID_ALARM, &pPvt->result.alarmSeverity);
+    (void)recGblSetSevr(pr, pPvt->result.alarmStatus, pPvt->result.alarmSeverity);
+    if(pPvt->result.status == asynSuccess) {
+        return 0;
+    } else {
+        pPvt->result.status = asynSuccess;
+        return -1;
+    }
 }
+
