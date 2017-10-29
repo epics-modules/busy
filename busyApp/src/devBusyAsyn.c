@@ -42,11 +42,6 @@
 #include "asynEpicsUtils.h"
 #include <epicsExport.h>
 
-typedef struct devBusyCBStr{
-    dbCommon *pr;
-    int value;
-    CALLBACK callback;
-}devBusyCBStr;
 
 typedef struct devBusyPvt{
     busyRecord       *pr;
@@ -200,58 +195,40 @@ static void processCallback(asynUser *pasynUser)
     if(pr->pact) callbackRequestProcessCallback(&pPvt->callback,pr->prio,pr);
 }
 
-/* This function is called from the general purpose callback task to process
- * the record in response to a driver callback.  In this case the record should be
- * processed but the driver should not be called
- */
-static void driverProcessCallback(CALLBACK *pcb)
-{
-    devBusyCBStr *pCBStr;
-    callbackGetUser(pCBStr, pcb);
-    {
-        dbCommon *pr = pCBStr->pr;
-        devBusyPvt *pPvt = (devBusyPvt *)pr->dpvt;
-        struct rset *prset = (struct rset *)pr->rset;
-        dbScanLock(pr);
-        pPvt->callbackValue = pCBStr->value;
-        pPvt->newCallbackValue = 1;
-        (prset->process)(pr);
-        dbScanUnlock(pr);
-        free(pCBStr);
-    }
-}
 
 static void interruptCallback(void *drvPvt, asynUser *pasynUser,
                 epicsInt32 value)
 {
     devBusyPvt *pPvt = (devBusyPvt *)drvPvt;
     busyRecord *pr = (busyRecord *)pPvt->pr;
-    devBusyCBStr *pCBStr;
 
     if (!interruptAccept) return;
-    pCBStr = (devBusyCBStr *) malloc(sizeof(devBusyCBStr));
-    pCBStr->value = value;
-    pCBStr->pr = (dbCommon *)pPvt->pr;
-    callbackSetCallback(driverProcessCallback, &pCBStr->callback);
-    callbackSetPriority(pr->prio, &pCBStr->callback);
-    callbackSetUser(pCBStr, &pCBStr->callback);
-    callbackRequest(&pCBStr->callback);
+    dbScanLock((dbCommon *)pr);
+    asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
+        "%s devBusyAsyn::interruptCallback pr->val=%d, new value=%d\n",
+        pr->name, pr->val, value);
+    pPvt->callbackValue = value;
+    pPvt->newCallbackValue++;
+    scanOnce((dbCommon *)pr);
+    dbScanUnlock((dbCommon *)pr);
 }
 
 static long processBusy(busyRecord *pr)
 {
     devBusyPvt *pPvt = (devBusyPvt *)pr->dpvt;
     int status;
-    
+
     /* Is the record processing because of a callback? */
     if (pPvt->newCallbackValue) {
+        if (pPvt->newCallbackValue > 1) {
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_WARNING,
+                "%s devBusyAsyn::processBusy, received multiple callbacks (%d) before record processed\n",
+                pr->name, pPvt->newCallbackValue);
+        }
         pPvt->newCallbackValue = 0;
         pr->rval = pPvt->callbackValue;
         pr->val = (pr->rval) ? 1 : 0;
         pr->udf = 0;
-        asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devBusyAsyn::processBusy got new value from driver callback pr->rval=%d\n",
-            pr->name, pr->rval);
     }
     else if(pr->pact == 0) {
         pPvt->value = pr->rval;
