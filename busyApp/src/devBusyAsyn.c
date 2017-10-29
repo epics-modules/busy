@@ -1,4 +1,4 @@
-/* devAsynInt32.c */
+/* devBusyAsyn.c */
 /***********************************************************************
 * Copyright (c) 2002 The University of Chicago, as Operator of Argonne
 * National Laboratory, and the Regents of the University of
@@ -8,7 +8,7 @@
 * found in file LICENSE that is included with this distribution.
 ***********************************************************************/
 /*
-    Authors:  Mark Rivers and Marty Kraimer
+    Authors:  Mark Rivers
     05-Sept-2004
 */
 
