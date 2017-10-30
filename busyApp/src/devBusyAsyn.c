@@ -19,7 +19,7 @@
 
 #include <alarm.h>
 #include <recGbl.h>
-#include "epicsMath.h"
+#include <epicsMath.h>
 #include <dbAccess.h>
 #include <dbDefs.h>
 #include <dbEvent.h>
@@ -33,11 +33,9 @@
 #include <dbCommon.h>
 #include <dbScan.h>
 #include <callback.h>
-#include <busyRecord.h>
 #include <recSup.h>
 #include <devSup.h>
 
-#include <epicsExport.h>
 #include "asynDriver.h"
 #include "asynDrvUser.h"
 #include "asynInt32.h"
@@ -46,14 +44,14 @@
 #include "asynEnumSyncIO.h"
 #include "asynEpicsUtils.h"
 
+#include <epicsExport.h>
+#include <busyRecord.h>
+
 #define INIT_OK 0
 #define INIT_DO_NOT_CONVERT 2
 #define INIT_ERROR -1
 
 #define DEFAULT_RING_BUFFER_SIZE 10
-/* We should be getting these from db_access.h, but get errors including that file? */
-#define MAX_ENUM_STATES 16
-#define MAX_ENUM_STRING_SIZE 26
 
 typedef struct ringBufferElement {
     epicsInt32          value;
@@ -94,9 +92,9 @@ typedef struct devInt32Pvt{
     char              *portName;
     char              *userParam;
     int               addr;
-    char              *enumStrings[MAX_ENUM_STATES];
-    int               enumValues[MAX_ENUM_STATES];
-    int               enumSeverities[MAX_ENUM_STATES];
+    char              *enumStrings[DB_MAX_CHOICES];
+    int               enumValues[DB_MAX_CHOICES];
+    int               enumSeverities[DB_MAX_CHOICES];
     asynStatus        previousQueueRequestStatus;
 }devInt32Pvt;
 
@@ -288,12 +286,12 @@ static void setEnums(char *outStrings, int *outVals, epicsEnum16 *outSeverities,
     size_t i;
     
     for (i=0; i<numOut; i++) {
-        if (outStrings) outStrings[i*MAX_ENUM_STRING_SIZE] = '\0';
+        if (outStrings) outStrings[i*MAX_STRING_SIZE] = '\0';
         if (outVals) outVals[i] = 0;
         if (outSeverities) outSeverities[i] = 0;
     }
     for (i=0; (i<numIn && i<numOut); i++) {
-        if (outStrings) strncpy(&outStrings[i*MAX_ENUM_STRING_SIZE], inStrings[i], MAX_ENUM_STRING_SIZE);
+        if (outStrings) strncpy(&outStrings[i*MAX_STRING_SIZE], inStrings[i], MAX_STRING_SIZE);
         if (outVals) outVals[i] = inVals[i];
         if (outSeverities) outSeverities[i] = inSeverities[i];
     }
