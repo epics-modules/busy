@@ -52,6 +52,9 @@
 #define INIT_ERROR -1
 
 #define DEFAULT_RING_BUFFER_SIZE 10
+/* We should be getting these from db_access.h, but get errors including that file? */
+#define MAX_ENUM_STATES 16
+#define MAX_ENUM_STRING_SIZE 26
 
 typedef struct ringBufferElement {
     epicsInt32          value;
@@ -92,9 +95,9 @@ typedef struct devPvt{
     char              *portName;
     char              *userParam;
     int               addr;
-    char              *enumStrings[DB_MAX_CHOICES];
-    int               enumValues[DB_MAX_CHOICES];
-    int               enumSeverities[DB_MAX_CHOICES];
+    char              *enumStrings[MAX_ENUM_STATES];
+    int               enumValues[MAX_ENUM_STATES];
+    int               enumSeverities[MAX_ENUM_STATES];
     asynStatus        previousQueueRequestStatus;
 }devPvt;
 
@@ -104,6 +107,7 @@ static void setEnums(char *outStrings, int *outVals, epicsEnum16 *outSeverities,
 static long createRingBuffer(dbCommon *pr);
 static void processCallbackOutput(asynUser *pasynUser);
 static void outputCallbackCallback(CALLBACK *pcb);
+static int  getCallbackValue(devPvt *pPvt);
 static void interruptCallbackOutput(void *drvPvt, asynUser *pasynUser,
                 epicsInt32 value);
 
@@ -286,12 +290,12 @@ static void setEnums(char *outStrings, int *outVals, epicsEnum16 *outSeverities,
     size_t i;
     
     for (i=0; i<numOut; i++) {
-        if (outStrings) outStrings[i*MAX_STRING_SIZE] = '\0';
+        if (outStrings) outStrings[i*MAX_ENUM_STRING_SIZE] = '\0';
         if (outVals) outVals[i] = 0;
         if (outSeverities) outSeverities[i] = 0;
     }
     for (i=0; (i<numIn && i<numOut); i++) {
-        if (outStrings) strncpy(&outStrings[i*MAX_STRING_SIZE], inStrings[i], MAX_STRING_SIZE);
+        if (outStrings) strncpy(&outStrings[i*MAX_ENUM_STRING_SIZE], inStrings[i], MAX_ENUM_STRING_SIZE);
         if (outVals) outVals[i] = inVals[i];
         if (outSeverities) outSeverities[i] = inSeverities[i];
     }
@@ -356,11 +360,14 @@ static void outputCallbackCallback(CALLBACK *pcb)
     callbackGetUser(pPvt, pcb);
     {
         dbCommon *pr = pPvt->pr;
-        struct rset *prset = (struct rset *)pr->rset;
         dbScanLock(pr);
         pPvt->newOutputCallbackValue = 1;
-        (prset->process)(pr);
-        pPvt->newOutputCallbackValue = 0;
+        dbProcess(pr);
+        if (pPvt->newOutputCallbackValue != 0) {
+            /* We called dbProcess but the record did not process, perhaps because PACT was 1 
+             * Need to remove ring buffer element */
+            getCallbackValue(pPvt);
+        }
         dbScanUnlock(pr);
     }
 }
@@ -397,6 +404,7 @@ static int getCallbackValue(devPvt *pPvt)
                                             pPvt->pr->name,pPvt->result.value);
         ret = 1;
     }
+    pPvt->newOutputCallbackValue = 0;
     epicsMutexUnlock(pPvt->ringBufferLock);
     return ret;
 }
