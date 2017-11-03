@@ -25,7 +25,7 @@ h2 {text-align:center}
         <li>Driver gets sent the value 1, but the record has the value 0.</li>
         <li>This happens because the callback with value 0 occurs after the driver has queued
           the request to send 1 but before the value is written to the driver. The 0 to 1
-          callback which happens later is ignorred by device support.</li>
+          callback which happens later is ignored by device support.</li>
         <li>This occurs in devBusyAsyn.c R1-6-1 and earlier.</li>
       </ul>
     </li>
@@ -43,22 +43,25 @@ h2 {text-align:center}
     </li>
   </ul>
   <p>
-    A test application to demonstrate these problems can be found in the quadEM module
+    A test application to demonstrate these problems was added to the quadEM module
     in the testAsynBusyApp directory. The test application could not be put in the busy
     module because the problem depends on autosave, and busy does not depend on autosave.</p>
   <p>
     This release changes the interrupt callback logic. Previously it was directly calling
     monitor() and recGblFwdLink. It was hard to get the logic right, and the 2 previous
-    versions of this support had bugs discussed above. This version just processes the
-    record via scanOnce on every callback. Note that this callback logic is not as sophisticated
-    as the standard asyn device support. That support handles callback bursts via a
-    ring buffer, and sets the record status and severity based on the status passed
-    to the callback. In the future we might want to change to using the standard devAsynInt32
-    device support, but that requires making the busy module an optional dependency
-    of asyn.</p>
+    versions of this support had bugs discussed above.</p>
   <p>
-    This fix has the further advantage of making the record have correct timestamps
-    when callbacks occur, which was not the case with the previous versions.</p>
+    This version is based directly on the code for the bo record in devAsynInt32.c in
+    asyn R4-33. The bo record was just changed to the busy record, and the logic is
+    the same as that for bo records with the asyn:READBACK info tag. It processes the
+    record on each callback from the driver, and distinguishes between record processing
+    due to driver callbacks (in which case the driver must not be called) and normal
+    record processing (in which case the driver must be called).</p>
+  <p>
+    This fix also makes the record have correct timestamps when callbacks occur, which
+    was not the case with the previous versions.</p>
+  <p>
+    Mark Rivers is responsible for these changes.</p>
   <h2>
     Release 1-6-1</h2>
   <p>
