@@ -364,6 +364,9 @@ static void outputCallbackCallback(CALLBACK *pcb)
         pPvt->newOutputCallbackValue = 1;
         dbProcess(pr);
         if (pPvt->newOutputCallbackValue != 0) {
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
+                "%s devBusyAsyn outputCallbackCallback warning record did not process on callback, PACT=%d\n",
+                                    pPvt->pr->name, pr->pact);
             /* We called dbProcess but the record did not process, perhaps because PACT was 1 
              * Need to remove ring buffer element */
             getCallbackValue(pPvt);
