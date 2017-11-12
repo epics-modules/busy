@@ -56,6 +56,8 @@
 #define MAX_ENUM_STATES 16
 #define MAX_ENUM_STRING_SIZE 26
 
+static const char *driverName = "devBusyAsyn";
+
 typedef struct ringBufferElement {
     epicsInt32          value;
     epicsTimeStamp      time;
@@ -91,6 +93,7 @@ typedef struct devPvt{
     CALLBACK          processCallback;
     CALLBACK          outputCallback;
     int               newOutputCallbackValue;
+    int               numDeferredOutputCallbacks;
     IOSCANPVT         ioScanPvt;
     char              *portName;
     char              *userParam;
@@ -138,6 +141,7 @@ static long initCommon(dbCommon *pr, DBLINK *plink,
     asynUser *pasynUser;
     asynInterface *pasynInterface;
     epicsUInt32 mask=0;
+    static const char *functionName="initCommon";
 
     pPvt = callocMustSucceed(1, sizeof(*pPvt), "devBusyAsyn::initCommon");
     pr->dpvt = pPvt;
@@ -158,22 +162,22 @@ static long initCommon(dbCommon *pr, DBLINK *plink,
                 &pPvt->portName, &pPvt->addr, &mask, &pPvt->userParam);
     }
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initCommon  %s\n",
-                     pr->name, pasynUser->errorMessage);
+        printf("%s %s::%s  %s\n",
+                     pr->name, driverName, functionName, pasynUser->errorMessage);
         goto bad;
     }
     
     /* Connect to device */
     status = pasynManager->connectDevice(pasynUser, pPvt->portName, pPvt->addr);
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initCommon connectDevice failed %s\n",
-                     pr->name, pasynUser->errorMessage);
+        printf("%s %s::%s connectDevice failed %s\n",
+                     pr->name, driverName, functionName, pasynUser->errorMessage);
         goto bad;
     }
     status = pasynManager->canBlock(pPvt->pasynUser, &pPvt->canBlock);
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initCommon canBlock failed %s\n",
-                     pr->name, pasynUser->errorMessage);
+        printf("%s %s::%s canBlock failed %s\n",
+                     pr->name, driverName, functionName, pasynUser->errorMessage);
         goto bad;
     }
     /*call drvUserCreate*/
@@ -186,16 +190,16 @@ static long initCommon(dbCommon *pr, DBLINK *plink,
         drvPvt = pasynInterface->drvPvt;
         status = pasynDrvUser->create(drvPvt,pasynUser,pPvt->userParam,0,0);
         if(status!=asynSuccess) {
-            printf("%s devBusyAsyn::initCommon drvUserCreate %s\n",
-                     pr->name, pasynUser->errorMessage);
+            printf("%s %s::%s drvUserCreate %s\n",
+                     pr->name, driverName, functionName, pasynUser->errorMessage);
             goto bad;
         }
     }
     /* Get interface asynInt32 */
     pasynInterface = pasynManager->findInterface(pasynUser, asynInt32Type, 1);
     if (!pasynInterface) {
-        printf("%s devBusyAsyn::initCommon findInterface asynInt32Type %s\n",
-                     pr->name,pasynUser->errorMessage);
+        printf("%s %s::%s findInterface asynInt32Type %s\n",
+                     pr->name, driverName, functionName,pasynUser->errorMessage);
         goto bad;
     }
     pPvt->pint32 = pasynInterface->pinterface;
@@ -206,8 +210,8 @@ static long initCommon(dbCommon *pr, DBLINK *plink,
     status = pasynInt32SyncIO->connect(pPvt->portName, pPvt->addr, 
                  &pPvt->pasynUserSync, pPvt->userParam);
     if (status != asynSuccess) {
-        printf("%s devBusyAsyn::initCommon Int32SyncIO->connect failed %s\n",
-               pr->name, pPvt->pasynUserSync->errorMessage);
+        printf("%s %s::%s Int32SyncIO->connect failed %s\n",
+               pr->name, driverName, functionName, pPvt->pasynUserSync->errorMessage);
         goto bad;
     }
     /* Initialize asynEnum interfaces */
@@ -219,8 +223,8 @@ static long initCommon(dbCommon *pr, DBLINK *plink,
         status = pasynEnumSyncIO->connect(pPvt->portName, pPvt->addr, 
                  &pPvt->pasynUserEnumSync, pPvt->userParam);
         if (status != asynSuccess) {
-            printf("%s devBusyAsyn::initCommon EnumSyncIO->connect failed %s\n",
-                   pr->name, pPvt->pasynUserEnumSync->errorMessage);
+            printf("%s %s::%s EnumSyncIO->connect failed %s\n",
+                   pr->name, driverName, functionName, pPvt->pasynUserEnumSync->errorMessage);
             goto bad;
         }
         status = pasynEnumSyncIO->read(pPvt->pasynUserEnumSync,
@@ -234,8 +238,8 @@ static long initCommon(dbCommon *pr, DBLINK *plink,
            pasynInterface->drvPvt, pPvt->pasynUser,
            callbackEnum, pPvt, &registrarPvt);
         if(status!=asynSuccess) {
-            printf("%s devBusyAsyn enum registerInterruptUser %s\n",
-                   pr->name,pPvt->pasynUser->errorMessage);
+            printf("%s %s::%s enum registerInterruptUser %s\n",
+                   pr->name, driverName, functionName,pPvt->pasynUser->errorMessage);
         }
     }
     /* If interruptCallback is not NULL then register for callbacks */
@@ -246,8 +250,8 @@ static long initCommon(dbCommon *pr, DBLINK *plink,
            pPvt->int32Pvt,pPvt->pasynUser,
            pPvt->interruptCallback,pPvt,&pPvt->registrarPvt);
         if (status!=asynSuccess) {
-            printf("%s devBusyAsyn::initRecord error calling registerInterruptUser %s\n",
-                   pr->name,pPvt->pasynUser->errorMessage);
+            printf("%s %s::%s error calling registerInterruptUser %s\n",
+                   pr->name, driverName, functionName,pPvt->pasynUser->errorMessage);
         }
         /* Initialize the interrupt callback */
         callbackSetCallback(outputCallbackCallback, &pPvt->outputCallback);
@@ -266,6 +270,7 @@ static long createRingBuffer(dbCommon *pr)
     devPvt *pPvt = (devPvt *)pr->dpvt;
     asynStatus status;
     const char *sizeString;
+    static const char *functionName="createRingBuffer";
     
     if (!pPvt->ringBuffer) {
         DBENTRY *pdbentry = dbAllocEntry(pdbbase);
@@ -273,8 +278,8 @@ static long createRingBuffer(dbCommon *pr)
         status = dbFindRecord(pdbentry, pr->name);
         if (status) {
             asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
-                "%s devBusyAsyn::createRingBufffer error finding record\n",
-                pr->name);
+                "%s %s::%s error finding record\n",
+                pr->name, driverName, functionName);
             return -1;
         }
         sizeString = dbGetInfo(pdbentry, "asyn:FIFO");
@@ -305,6 +310,7 @@ static void processCallbackOutput(asynUser *pasynUser)
 {
     devPvt *pPvt = (devPvt *)pasynUser->userPvt;
     dbCommon *pr = pPvt->pr;
+    static const char *functionName="processCallbackOutput";
 
     pPvt->result.status = pPvt->pint32->write(pPvt->int32Pvt, pPvt->pasynUser,pPvt->result.value);
     pPvt->result.time = pPvt->pasynUser->timestamp;
@@ -312,11 +318,11 @@ static void processCallbackOutput(asynUser *pasynUser)
     pPvt->result.alarmSeverity = pPvt->pasynUser->alarmSeverity;
     if(pPvt->result.status == asynSuccess) {
         asynPrint(pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devBusyAsyn process value %d\n",pr->name,pPvt->result.value);
+            "%s %s::%s process value %d\n",pr->name, driverName, functionName,pPvt->result.value);
     } else {
        asynPrint(pasynUser, ASYN_TRACE_ERROR,
-           "%s devBusyAsyn process error %s\n",
-           pr->name, pasynUser->errorMessage);
+           "%s %s::%s process error %s\n",
+           pr->name, driverName, functionName, pasynUser->errorMessage);
     }
     if(pr->pact) callbackRequestProcessCallback(&pPvt->processCallback,pr->prio,pr);
 }
@@ -328,15 +334,19 @@ static void interruptCallbackOutput(void *drvPvt, asynUser *pasynUser,
     devPvt *pPvt = (devPvt *)drvPvt;
     dbCommon *pr = pPvt->pr;
     ringBufferElement *rp;
+    static const char *functionName="interruptCallbackOutput";
 
     if (pPvt->mask) {
         value &= pPvt->mask;
         if (pPvt->bipolar && (value & pPvt->signBit)) value |= ~pPvt->mask;
     }
     asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-        "%s devBusyAsyn::interruptCallbackOutput new value=%d\n",
-        pr->name, value);
+        "%s %s::%s new value=%d\n",
+        pr->name, driverName, functionName, value);
     if (!interruptAccept) return;
+    /* We need the scan lock because we look at PACT and pPvt->numDeferredOutputCallbacks
+     * Must take scan lock before ring buffer lock */
+    dbScanLock(pr);
     epicsMutexLock(pPvt->ringBufferLock);
     rp = &pPvt->ringBuffer[pPvt->ringHead];
     rp->value = value;
@@ -349,13 +359,22 @@ static void interruptCallbackOutput(void *drvPvt, asynUser *pasynUser,
         pPvt->ringTail = (pPvt->ringTail==pPvt->ringSize) ? 0 : pPvt->ringTail+1;
         pPvt->ringBufferOverflows++;
     } else {
-        callbackRequest(&pPvt->outputCallback);
+        /* If PACT is true then this callback was received during asynchronous record processing
+         * Must defer calling callbackRequest until end of record processing */
+        if (pr->pact) {
+            pPvt->numDeferredOutputCallbacks++;
+        } else { 
+            callbackRequest(&pPvt->outputCallback);
+        }
     }
     epicsMutexUnlock(pPvt->ringBufferLock);
+    dbScanUnlock(pr);
 }
 
 static void outputCallbackCallback(CALLBACK *pcb)
 {
+    static const char *functionName="outputCallbackCallback";
+
     devPvt *pPvt; 
     callbackGetUser(pPvt, pcb);
     {
@@ -364,12 +383,13 @@ static void outputCallbackCallback(CALLBACK *pcb)
         pPvt->newOutputCallbackValue = 1;
         dbProcess(pr);
         if (pPvt->newOutputCallbackValue != 0) {
-            asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
-                "%s devBusyAsyn outputCallbackCallback warning record did not process on callback, PACT=%d\n",
-                                    pPvt->pr->name, pr->pact);
             /* We called dbProcess but the record did not process, perhaps because PACT was 1 
              * Need to remove ring buffer element */
+            asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR, 
+                "%s %s::%s warning dbProcess did not process record, PACT=%d\n", 
+                pr->name, driverName, functionName,pr->pact);
             getCallbackValue(pPvt);
+            pPvt->newOutputCallbackValue = 0;
         }
         dbScanUnlock(pr);
     }
@@ -392,39 +412,42 @@ static void interruptCallbackEnumBusy(void *drvPvt, asynUser *pasynUser,
 static int getCallbackValue(devPvt *pPvt)
 {
     int ret = 0;
+    static const char *functionName="getCallbackValue";
+
     epicsMutexLock(pPvt->ringBufferLock);
     if (pPvt->ringTail != pPvt->ringHead) {
         if (pPvt->ringBufferOverflows > 0) {
             asynPrint(pPvt->pasynUser, ASYN_TRACE_WARNING,
-                "%s devBusyAsyn getCallbackValue warning, %d ring buffer overflows\n",
-                                    pPvt->pr->name, pPvt->ringBufferOverflows);
+                "%s %s::%s warning, %d ring buffer overflows\n",
+                                    pPvt->pr->name, driverName, functionName, pPvt->ringBufferOverflows);
             pPvt->ringBufferOverflows = 0;
         }
         pPvt->result = pPvt->ringBuffer[pPvt->ringTail];
         pPvt->ringTail = (pPvt->ringTail==pPvt->ringSize) ? 0 : pPvt->ringTail+1;
         asynPrint(pPvt->pasynUser, ASYN_TRACEIO_DEVICE,
-            "%s devBusyAsyn::getCallbackValue from ringBuffer value=%d\n",
-                                            pPvt->pr->name,pPvt->result.value);
+            "%s %s::%s from ringBuffer value=%d\n",
+                                            pPvt->pr->name, driverName, functionName,pPvt->result.value);
         ret = 1;
     }
-    pPvt->newOutputCallbackValue = 0;
     epicsMutexUnlock(pPvt->ringBufferLock);
     return ret;
 }
 
 static void reportQueueRequestStatus(devPvt *pPvt, asynStatus status)
 {
+    static const char *functionName="reportQueueRequestStatus";
+
     if (status != asynSuccess) pPvt->result.status = status;
     if (pPvt->previousQueueRequestStatus != status) {
         pPvt->previousQueueRequestStatus = status;
         if (status == asynSuccess) {
             asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
-                "%s devBusyAsyn queueRequest status returned to normal\n", 
-                pPvt->pr->name);
+                "%s %s::%s queueRequest status returned to normal\n", 
+                pPvt->pr->name, driverName, functionName);
         } else {
             asynPrint(pPvt->pasynUser, ASYN_TRACE_ERROR,
-                "%s devBusyAsyn queueRequest %s\n", 
-                pPvt->pr->name,pPvt->pasynUser->errorMessage);
+                "%s %s::%s queueRequest error %s\n", 
+                pPvt->pr->name, driverName, functionName,pPvt->pasynUser->errorMessage);
         }
     }
 }
@@ -475,6 +498,11 @@ static long processBusy(busyRecord *pr)
                                             WRITE_ALARM, &pPvt->result.alarmStatus,
                                             INVALID_ALARM, &pPvt->result.alarmSeverity);
     (void)recGblSetSevr(pr, pPvt->result.alarmStatus, pPvt->result.alarmSeverity);
+    if (pPvt->numDeferredOutputCallbacks > 0) {
+        callbackRequest(&pPvt->outputCallback);
+        pPvt->numDeferredOutputCallbacks--;
+    }
+    pPvt->newOutputCallbackValue = 0;
     if(pPvt->result.status == asynSuccess) {
         return 0;
     } else {
@@ -482,4 +510,3 @@ static long processBusy(busyRecord *pr)
         return -1;
     }
 }
-
