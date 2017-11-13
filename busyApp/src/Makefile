@@ -17,6 +17,15 @@ ifdef ASYN
 endif
 LIB_LIBS += $(EPICS_BASE_IOC_LIBS)
 
+ifdef ASYN
+  ifdef AUTOSAVE
+   LIB_SRCS += testBusyAsyn.cpp
+   PROD_IOC += testBusyAsyn
+   testBusyAsyn_SRCS += testBusyAsynMain.cpp
+   testBusyAsyn_LIBS += busy asyn $(EPICS_BASE_IOC_LIBS)
+  endif
+endif
+
 include $(TOP)/configure/RULES
 #----------------------------------------
 #  ADD RULES AFTER THIS LINE
@@ -24,11 +33,9 @@ include $(TOP)/configure/RULES
 ifdef ASYN
 busySupport.dbd: ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd
 	$(PERL) -MExtUtils::Command -e cat $^ > $@
-#	perl ../cat.pl ../busySupport_LOCAL.dbd ../busySupport_withASYN.dbd  busySupport.dbd
 else
 busySupport.dbd: ../busySupport_LOCAL.dbd
 	$(PERL) -MExtUtils::Command -e cat $^ > $@
-#	perl ../cat.pl ../busySupport_LOCAL.dbd busySupport.dbd
 endif
 
 # Parallel build sometimes fails.
