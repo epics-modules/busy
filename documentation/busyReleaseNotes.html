@@ -45,12 +45,32 @@ h2 {text-align:center}
     </li>
   </ul>
   <p>
-    A test application to demonstrate these problems was added to the busy module directory.
+    A test application to demonstrate these problems was added to the busy module. It
+    allows testing all combinations of the following 6 settings:</p>
+  <ol>
+    <li>Synchronous driver, i.e. ASYN_CANBLOCK not set.</li>
+    <li>Asynchronous driver, i.e. ASYN_CANBLOCK is set.</li>
+    <li>Driver callback is done in the write() operation.</li>
+    <li>Driver callback is done in a separate thread. The callbacks are triggered with
+      the TriggerCallbacks record.</li>
+    <li>Single callback is done in each operation.</li>
+    <li>Multiple callbacks are done in each operation. The NumCallbacks record selects
+      the number of callbacks.</li>
+  </ol>
+  <p>
+    The callback value is the logical inverse of the current record value. This means
+    that if 1 is written to the record the callback value will be 0, and the record
+    value will immediately change to 0. For the triggered callbacks the values will
+    toggle between 0 and 1. The following is a screen shot of the test application:</p>
+  <p style="text-align: center">
+    <img alt="testBusyAsyn.png" src="testBusyAsyn.png" /></p>
+  <p>
     The test application requires autosave, so busy is now optionally dependent on autosave.</p>
   <p>
     This release changes the interrupt callback logic. Previously it was directly calling
-    monitor() and recGblFwdLink. It was hard to get the logic right, and the 2 previous
-    versions of this support had bugs discussed above.</p>
+    monitor() and recGblFwdLink and not actually processing the record. It was hard
+    to get the logic right, and the 2 previous versions of this support had bugs discussed
+    above. The proper solution is to process the record on each callback.</p>
   <p>
     This version is based directly on the code for the bo record in devAsynInt32.c in
     asyn R4-33. The bo record was just changed to the busy record, and the logic is
