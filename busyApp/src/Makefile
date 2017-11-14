@@ -19,10 +19,15 @@ LIB_LIBS += $(EPICS_BASE_IOC_LIBS)
 
 ifdef ASYN
   ifdef AUTOSAVE
-   LIB_SRCS += testBusyAsyn.cpp
-   PROD_IOC += testBusyAsyn
-   testBusyAsyn_SRCS += testBusyAsynMain.cpp
-   testBusyAsyn_LIBS += busy asyn $(EPICS_BASE_IOC_LIBS)
+    LIB_SRCS += testBusyAsyn.cpp
+    PROD_IOC += testBusyAsyn
+    DBD += testBusyAsyn.dbd
+    # <name>_registerRecordDeviceDriver.cpp will be created from <name>.dbd
+    testBusyAsyn_SRCS_DEFAULT += testBusyAsyn_registerRecordDeviceDriver.cpp testBusyAsynMain.cpp
+    testBusyAsynVx_SRCS_vxWorks  += testBusyAsyn_registerRecordDeviceDriver.cpp
+    testBusyAsyn_LIBS += busy asyn autosave
+    testBusyAsyn_LIBS += $(EPICS_BASE_IOC_LIBS)
+    testBusyAsyn_OBJS_vxWorks += $(EPICS_BASE_BIN)/vxComLibrary
   endif
 endif
 
