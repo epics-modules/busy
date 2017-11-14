@@ -1,13 +1,13 @@
 
 file {
-	name="/home/epics/devel/asyn-4-32/testOutputCallbackApp/adl/testOutputCallbackTop.adl"
+	name="/home/epics/devel/busy-1-7/busyApp/op/adl/testBusyAsynTop.adl"
 	version=030109
 }
 display {
 	object {
 		x=555
 		y=59
-		width=300
+		width=220
 		height=50
 	}
 	clr=14
@@ -89,20 +89,20 @@ display {
 }
 "related display" {
 	object {
-		x=195
+		x=131
 		y=13
 		width=80
 		height=20
 	}
 	display[0] {
-		label="testOutputCallback"
-		name="testOutputCallback.adl"
-		args="P=testOutputCallback:"
+		label="testBusyAsyn"
+		name="testBusyAsyn.adl"
+		args="P=testBusyAsyn:"
 	}
 	display[1] {
 		label="asynRecord debug"
 		name="asynRecord.adl"
-		args="P=testOutputCallback:, R=asyn1"
+		args="P=testBusyAsyn:, R=asyn1"
 	}
 	clr=14
 	bclr=51
@@ -111,11 +111,11 @@ text {
 	object {
 		x=6
 		y=12
-		width=180
+		width=120
 		height=20
 	}
 	"basic attribute" {
 		clr=14
 	}
-	textix="testOutputCallback"
+	textix="testBusyAsyn"
 }
