@@ -1,4 +1,5 @@
 include "base.dbd"
 include "asyn.dbd"
+include "busySupport.dbd"
 include "asSupport.dbd"
-registrar("testOutputCallbackRegister")
+registrar("testBusyAsynRegister")
