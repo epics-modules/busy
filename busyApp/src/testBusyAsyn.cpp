@@ -40,6 +40,7 @@ class testBusyAsyn : public asynPortDriver {
 public:
     testBusyAsyn(const char *portName, int canBlock);
     asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
+    asynStatus writeFloat64(asynUser *pasynUser, epicsFloat64 value);
     void callbackThread();
 
 private:
@@ -67,7 +68,7 @@ testBusyAsyn::testBusyAsyn(const char *portName, int canBlock)
    : asynPortDriver(portName, 
                     1, /* maxAddr */ 
                      /* Interface mask */
-                    asynInt32Mask | asynDrvUserMask,
+                    asynInt32Mask | asynFloat64Mask | asynDrvUserMask,
                     /* Interrupt mask */
                     asynInt32Mask | asynOctetMask,
                     canBlock ? ASYN_CANBLOCK : 0, /* asynFlags.  canblock is passed to constructor and multi-device is 0 */
@@ -106,6 +107,18 @@ asynStatus testBusyAsyn::writeInt32(asynUser *pasynUser, epicsInt32 value)
     }
     else if (function == P_TriggerCallbacks) {
         epicsEventSignal(callbackEvent_);
+    }
+    return asynSuccess;
+}
+
+asynStatus testBusyAsyn::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
+{
+    int function=pasynUser->reason;
+
+    setDoubleParam(function, value);
+
+    if (function == P_SleepTime) {
+        sleepTime_ = value;
     }
     return asynSuccess;
 }
