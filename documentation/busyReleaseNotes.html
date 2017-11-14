@@ -1,11 +1,13 @@
-<html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
+  <title>busyReleaseNotes</title>
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="Content-Type" />
   <style type="text/css">
 h1 {text-align:center}
 h2 {text-align:center}
 </style>
-  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-  <title>busyReleaseNotes</title>
 </head>
 <body>
   <h1>
@@ -43,9 +45,8 @@ h2 {text-align:center}
     </li>
   </ul>
   <p>
-    A test application to demonstrate these problems was added to the quadEM module
-    in the testAsynBusyApp directory. The test application could not be put in the busy
-    module because the problem depends on autosave, and busy does not depend on autosave.</p>
+    A test application to demonstrate these problems was added to the busy module directory.
+    The test application requires autosave, so busy is now optionally dependent on autosave.</p>
   <p>
     This release changes the interrupt callback logic. Previously it was directly calling
     monitor() and recGblFwdLink. It was hard to get the logic right, and the 2 previous
@@ -122,7 +123,7 @@ h2 {text-align:center}
     <br />
     <a href="mailto:mooney@aps.anl.gov">Tim Mooney </a>: (mooney@aps.anl.gov)
     <br />
-    Last modified: Feb 25, 2017
+    Last modified: Nov 14, 2017
   </address>
 </body>
 </html>
