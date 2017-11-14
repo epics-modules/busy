@@ -1,4 +1,4 @@
-record(bo, "$(P)Busy")
+record(busy, "$(P)Busy")
 {
    field(PINI, "$(PINI)")
    field(DTYP, "asynInt32")
