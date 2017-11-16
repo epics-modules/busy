@@ -140,7 +140,7 @@ void testBusyAsyn::callbackThread()
     lock();
     while (1) {
         unlock();
-        epicsEventWait(callbackEvent_);
+        (void)epicsEventWait(callbackEvent_);
         lock();
         doBusyCallbacks();
     }
