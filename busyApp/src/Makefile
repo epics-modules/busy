@@ -49,4 +49,5 @@ busyRecord$(OBJ):     $(COMMON_DIR)/busyRecord.h
 devBusySoft$(OBJ):    $(COMMON_DIR)/busyRecord.h
 devBusySoftRaw$(OBJ): $(COMMON_DIR)/busyRecord.h
 devBusyAsyn$(OBJ):    $(COMMON_DIR)/busyRecord.h
+$(COMMON_DIR)/testBusyAsyn.dbd: busySupport.dbd
 
