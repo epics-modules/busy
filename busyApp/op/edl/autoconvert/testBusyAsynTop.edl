@@ -1,0 +1,76 @@
+4 0 0
+beginScreenProperties
+major 4
+minor 0
+release 0
+x 555
+y 59
+w 220
+h 50
+font "helvetica-medium-r-18.0"
+ctlFont "helvetica-medium-r-8.0"
+btnFont "helvetica-medium-r-18.0"
+fgColor index 14
+bgColor index 4
+textColor index 14
+ctlFgColor1 index 30
+ctlFgColor2 index 32
+ctlBgColor1 index 34
+ctlBgColor2 index 35
+topShadowColor index 37
+botShadowColor index 44
+snapToGrid
+gridSize 5
+endScreenProperties
+
+
+# (Static Text)
+object activeXTextClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 6
+y 12
+w 120
+h 20
+font "helvetica-medium-r-8.0"
+fgColor index 14
+useDisplayBg
+value {
+ "testBusyAsyn"
+}
+endObjectProperties
+
+# (Related Display)
+object relatedDisplayClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 131
+y 13
+w 80
+h 20
+fgColor index 14
+bgColor index 51
+topShadowColor index 2
+botShadowColor index 12
+font "helvetica-medium-r-10.0"
+icon
+numPvs 4
+numDsps 2
+displayFileName {
+  0 testBusyAsyn.edl
+  1 asynRecord.adl
+}
+menuLabel {
+  0 testBusyAsyn
+  1 asynRecord debug
+}
+symbols {
+  0 "P=testBusyAsyn:"
+  1 "P=testBusyAsyn:,R=asyn1"
+}
+endObjectProperties
+
