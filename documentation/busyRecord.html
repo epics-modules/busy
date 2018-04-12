@@ -57,13 +57,6 @@
     can configure MASK to a bit-pattern and have the BUSY record write this value to
     a selRecord's SELN field.</p>
   <p>
-    For version 1.2 of the BUSY module, Ben Franksen added "Raw Soft Channel" device
-    support, which allows the BUSY record to write a user configurable integer value
-    (the value of the MASK field) via its OUT link, when the record's VAL field has
-    the value 1. Currently, MASK can only be specified at DCT time. For example, you
-    can configure MASK to a bit-pattern and have the BUSY record write this value to
-    a selRecord's SELN field.</p>
-  <p>
     The busy module also optionally contains asyn device support. This device support
     is identical to that for the bo record in standard asyn device support, with one
     exception. For the bo record the info tag asyn:READBACK causes the device support
