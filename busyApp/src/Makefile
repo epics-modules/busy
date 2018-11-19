@@ -3,6 +3,9 @@ include $(TOP)/configure/CONFIG
 #----------------------------------------
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 #=============================
+
+USR_CPPFLAGS += -DUSE_TYPED_RSET
+
 DBD_INSTALLS += busySupport.dbd
 DBDINC += busyRecord
 
