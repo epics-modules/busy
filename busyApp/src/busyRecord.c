@@ -44,18 +44,18 @@
 /* Create RSET - Record Support Entry Table*/
 #define report NULL
 #define initialize NULL
-static long init_record(busyRecord *, int);
-static long process(busyRecord *);
+static long init_record(dbCommon *, int);
+static long process(dbCommon *);
 #define special NULL
 #define get_value NULL
 #define cvt_dbaddr NULL
 #define get_array_info NULL
 #define put_array_info NULL
 #define get_units NULL
-static long get_precision(DBADDR *, long *);
-static long get_enum_str(DBADDR *, char *);
-static long get_enum_strs(DBADDR *, struct dbr_enumStrs *);
-static long put_enum_str(DBADDR *, char *);
+static long get_precision(const DBADDR *, long *);
+static long get_enum_str(const DBADDR *, char *);
+static long get_enum_strs(const DBADDR *, struct dbr_enumStrs *);
+static long put_enum_str(const DBADDR *, const char *);
 #define get_graphic_double NULL
 #define get_control_double NULL
 #define get_alarm_double NULL
@@ -124,8 +124,9 @@ static void myCallbackFunc(CALLBACK *arg)
     dbScanUnlock((struct dbCommon *)prec);
 }
 
-static long init_record(busyRecord *prec, int pass)
+static long init_record(dbCommon *pcommon, int pass)
 {
+    busyRecord *prec = (busyRecord *) pcommon;
     struct busydset *pdset;
     long status=0;
     myCallback *pcallback;
@@ -179,8 +180,9 @@ static long init_record(busyRecord *prec, int pass)
     return(status);
 }
 
-static long process(busyRecord *prec)
+static long process(dbCommon *pcommon)
 {
+    busyRecord *prec = (busyRecord *) pcommon;
     struct busydset    *pdset = (struct busydset *)(prec->dset);
     long         status=0;
     unsigned char    pact=prec->pact;
@@ -272,7 +274,7 @@ static long process(busyRecord *prec)
     return(status);
 }
 
-static long get_precision(DBADDR *paddr, long *precision)
+static long get_precision(const DBADDR *paddr, long *precision)
 {
     busyRecord    *prec=(busyRecord *)paddr->precord;
 
@@ -281,7 +283,7 @@ static long get_precision(DBADDR *paddr, long *precision)
     return(0);
 }
 
-static long get_enum_str(DBADDR *paddr, char *pstring)
+static long get_enum_str(const DBADDR *paddr, char *pstring)
 {
     busyRecord      *prec=(busyRecord *)paddr->precord;
     int             index;
@@ -303,7 +305,7 @@ static long get_enum_str(DBADDR *paddr, char *pstring)
     return(0);
 }
 
-static long get_enum_strs(DBADDR *paddr,struct dbr_enumStrs *pes)
+static long get_enum_strs(const DBADDR *paddr,struct dbr_enumStrs *pes)
 {
     busyRecord    *prec=(busyRecord *)paddr->precord;
 
@@ -316,7 +318,7 @@ static long get_enum_strs(DBADDR *paddr,struct dbr_enumStrs *pes)
     if(*prec->onam!=0) pes->no_str=2;
     return(0);
 }
-static long put_enum_str(DBADDR *paddr, char *pstring)
+static long put_enum_str(const DBADDR *paddr, const char *pstring)
 {
     busyRecord     *prec=(busyRecord *)paddr->precord;
 
