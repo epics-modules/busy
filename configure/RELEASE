@@ -8,16 +8,16 @@ SUPPORT=/corvette/home/epics/devel
 -include $(TOP)/../configure/SUPPORT.$(EPICS_HOST_ARCH)
 
 # ASYN is needed to compile asyn device support
-ASYN=$(SUPPORT)/asyn-4-32
+ASYN=$(SUPPORT)/asyn-4-33
 
 # AUTOSAVE is needed for the test application only
-AUTOSAVE=$(SUPPORT)/autosave-5-8
+AUTOSAVE=$(SUPPORT)/autosave-5-9
 
 # BUSY is this module
 BUSY=$(SUPPORT)/busy-1-7
 
 # EPICS_BASE usually appears last so other apps can override stuff:
-EPICS_BASE=/corvette/usr/local/epics-devel/base-3.15.5
+EPICS_BASE=/corvette/usr/local/epics-devel/base-7.0.2
 -include $(TOP)/../configure/EPICS_BASE.$(EPICS_HOST_ARCH)
 
 #Capfast users may need the following definitions
