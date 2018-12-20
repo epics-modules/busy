@@ -99,13 +99,11 @@ asynStatus testBusyAsyn::writeInt32(asynUser *pasynUser, epicsInt32 value)
 
     setIntegerParam(function, value);
 
-    if (function == P_BusyValue) {
-        doBusyCallbacks();
-    }
-    else if (function == P_NumCallbacks) {
+    if (function == P_NumCallbacks) {
         numCallbacks_ = value;
     }
-    else if (function == P_TriggerCallbacks) {
+    else if ((function == P_TriggerCallbacks) ||
+             (function == P_BusyValue)) {
         epicsEventSignal(callbackEvent_);
     }
     return asynSuccess;
@@ -123,26 +121,22 @@ asynStatus testBusyAsyn::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     return asynSuccess;
 }
 
-void testBusyAsyn::doBusyCallbacks()
-{
-    epicsInt32 value;
-    for (int i=0; i<numCallbacks_; i++) {
-        getIntegerParam(P_BusyValue, &value);
-        value = value ? 0:1;
-        setIntegerParam(P_BusyValue, value);
-        callParamCallbacks();
-        if (sleepTime_ > 0) epicsThreadSleep(sleepTime_);
-    }
-}
-
 void testBusyAsyn::callbackThread()
 {
+    int value;
+
     lock();
     while (1) {
         unlock();
         (void)epicsEventWait(callbackEvent_);
         lock();
-        doBusyCallbacks();
+        for (int i=0; i<numCallbacks_; i++) {
+            if (sleepTime_ > 0) epicsThreadSleep(sleepTime_);
+            getIntegerParam(P_BusyValue, &value);
+            value = value ? 0:1;
+            setIntegerParam(P_BusyValue, value);
+            callParamCallbacks();
+        }
     }
 }
 
