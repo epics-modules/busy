@@ -29,6 +29,7 @@ record(ao, "$(P)SleepTime")
    field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))SLEEP_TIME")
    field(PREC, "3")
    field(VAL,  "0.")
+   field(PINI, "YES")
 }
 
 record(bo, "$(P)TriggerCallbacks")
