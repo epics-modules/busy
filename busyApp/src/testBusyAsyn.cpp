@@ -98,6 +98,7 @@ asynStatus testBusyAsyn::writeInt32(asynUser *pasynUser, epicsInt32 value)
     int function=pasynUser->reason;
 
     setIntegerParam(function, value);
+    callParamCallbacks();
 
     if (function == P_NumCallbacks) {
         numCallbacks_ = value;
@@ -114,6 +115,7 @@ asynStatus testBusyAsyn::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     int function=pasynUser->reason;
 
     setDoubleParam(function, value);
+    callParamCallbacks();
 
     if (function == P_SleepTime) {
         sleepTime_ = value;
