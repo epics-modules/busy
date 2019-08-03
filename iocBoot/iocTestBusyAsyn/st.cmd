@@ -12,7 +12,9 @@ testBusyAsynConfigure("$(PORT)", 0)
 asynSetTraceMask("$(PORT)",0,0x21)
 asynSetTraceIOMask("$(PORT)",0,0x2)
 
-dbLoadRecords("$(BUSY)/db/testBusyAsyn.db","P=$(PREFIX),PORT=$(PORT),ADDR=0,TIMEOUT=1,PINI=YES")
+#dbLoadRecords("$(BUSY)/db/testBusyAsyn.db","P=$(PREFIX),PORT=$(PORT),ADDR=0,TIMEOUT=1,PINI=YES")
+#dbLoadRecords("$(BUSY)/db/testBusyAsyn2.db","P=$(PREFIX),PORT=$(PORT),ADDR=0,TIMEOUT=1,PINI=YES")
+dbLoadRecords("$(BUSY)/db/testBusyAsyn3.db","P=$(PREFIX)")
 
 dbLoadRecords("$(ASYN)/db/asynRecord.db","P=$(PREFIX),R=asyn1,PORT=$(PORT),ADDR=0,OMAX=80,IMAX=80")
 
