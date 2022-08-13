@@ -1,0 +1,7 @@
+BASE="3.16"
+
+MODULES="sncseq asyn autosave"
+
+SNCSEQ="R2-2-9"
+ASYN="R4-42"
+AUTOSAVE="R5-10-2"

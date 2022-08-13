@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/epics-modules/busy.svg?branch=master)](https://travis-ci.org/epics-modules/busy)
+[![BUSY](https://github.com/epics-modules/busy/actions/workflows/ci-scripts-build.yml/badge.svg)](https://github.com/epics-modules/busy/actions/workflows/ci-scripts-build.yml)
 
 # busy
 APS BCDA synApps module: busy
