@@ -8,6 +8,11 @@ nav_order: 3
 busy Release Notes
 ==================
 
+Release 1-7-4
+-------------
+
+Converted documentation to github pages
+
 Release 1-7-3
 -------------
 
