@@ -124,5 +124,4 @@ This is the first release of the synApps busy module.
 This version is intended to build with EPICS base 3.14.10.
 
 Suggestions and Comments to:  
-[Tim Mooney](mailto:mooney@aps.anl.gov) : (mooney@aps.anl.gov)  
-Last modified: Nov 14, 2017
+[Keenan Lang](mailto:klang@anl.gov) : (klang@anl.gov)  
