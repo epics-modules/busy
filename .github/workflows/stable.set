@@ -1,7 +1,5 @@
-BASE="3.15"
-
 MODULES="sncseq asyn autosave"
 
 SNCSEQ="R2-2-9"
-ASYN="master"
-AUTOSAVE="master"
+ASYN="R4-42"
+AUTOSAVE="R5-10-2"
