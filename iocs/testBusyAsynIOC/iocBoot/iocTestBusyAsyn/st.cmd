@@ -1,7 +1,7 @@
 < envPaths
 
-dbLoadDatabase("../../dbd/testBusyAsyn.dbd")
-testBusyAsyn_registerRecordDeviceDriver(pdbbase)
+dbLoadDatabase("../../dbd/testBusyAsynApp.dbd")
+testBusyAsynApp_registerRecordDeviceDriver(pdbbase)
 
 epicsEnvSet("PREFIX", "testBusyAsyn:")
 epicsEnvSet("PORT",   "TBA")

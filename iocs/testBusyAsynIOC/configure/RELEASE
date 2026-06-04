@@ -1,0 +1,11 @@
+# RELEASE - Location of external support modules
+
+BUSY = $(TOP)/../..
+
+# Pull in EPICS_BASE and other paths from the parent module
+-include $(BUSY)/configure/RELEASE
+-include $(BUSY)/configure/RELEASE.local
+
+# These lines allow developers to override these RELEASE settings
+# without having to modify this file directly.
+-include $(TOP)/configure/RELEASE.local

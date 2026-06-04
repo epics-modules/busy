@@ -6,6 +6,8 @@ include $(TOP)/configure/CONFIG
 
 USR_CPPFLAGS += -DUSE_TYPED_RSET
 
+CFG += BUSY_DEPS
+
 DBD_INSTALLS += busySupport.dbd
 DBDINC += busyRecord
 
@@ -19,20 +21,6 @@ ifdef ASYN
 	LIB_LIBS += asyn
 endif
 LIB_LIBS += $(EPICS_BASE_IOC_LIBS)
-
-ifdef ASYN
-  ifdef AUTOSAVE
-    LIB_SRCS += testBusyAsyn.cpp
-    PROD_IOC += testBusyAsyn
-    DBD += testBusyAsyn.dbd
-    # <name>_registerRecordDeviceDriver.cpp will be created from <name>.dbd
-    testBusyAsyn_SRCS_DEFAULT += testBusyAsyn_registerRecordDeviceDriver.cpp testBusyAsynMain.cpp
-    testBusyAsynVx_SRCS_vxWorks  += testBusyAsyn_registerRecordDeviceDriver.cpp
-    testBusyAsyn_LIBS += busy asyn autosave
-    testBusyAsyn_LIBS += $(EPICS_BASE_IOC_LIBS)
-    testBusyAsyn_OBJS_vxWorks += $(EPICS_BASE_BIN)/vxComLibrary
-  endif
-endif
 
 include $(TOP)/configure/RULES
 #----------------------------------------
@@ -52,5 +40,4 @@ busyRecord$(OBJ):     $(COMMON_DIR)/busyRecord.h
 devBusySoft$(OBJ):    $(COMMON_DIR)/busyRecord.h
 devBusySoftRaw$(OBJ): $(COMMON_DIR)/busyRecord.h
 devBusyAsyn$(OBJ):    $(COMMON_DIR)/busyRecord.h
-$(COMMON_DIR)/testBusyAsyn.dbd: busySupport.dbd
 
