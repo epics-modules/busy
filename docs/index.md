@@ -6,6 +6,13 @@ nav_order: 1
 
 
 # synApps: busy
+{: .no_toc}
+
+## Table of contents
+{: .no_toc .text-delta}
+
+- TOC
+{:toc}
 
 The **busy** module contains the busy record, which allows EPICS Channel Access
 clients to signal the completion of an operation in a way that works with the
@@ -21,27 +28,21 @@ external work is done.
 GitHub repository:
 [https://github.com/epics-modules/busy](https://github.com/epics-modules/busy)
 
-## Documentation
-
-- [Busy Record Reference](busyRecord) -- Record behavior, field reference,
-  device support, and common use cases
-- [Release Notes](busyReleaseNotes) -- Version history and changes
-- [busyExample.py](https://github.com/epics-modules/busy/blob/master/docs/busyExample.py)
-  -- Python (PyEpics) client example
-
-## Required Modules
+Required Modules
+----------------
 
 | Module | Required? | Notes |
-|--------|-----------|-------|
+| - | - | - |
 | [EPICS Base](https://epics-controls.org/) | Yes | 3.15+ or 7.0+ |
 | [asyn](https://github.com/epics-modules/asyn) | Optional | Needed for `asynInt32` device support. The module builds without it; only soft-channel device support will be available. |
 | [autosave](https://github.com/epics-modules/autosave) | Optional | Only needed for the included test IOC (`testBusyAsyn`). Not required for normal use. |
 
-## Installation and Building
+Installation and Building
+--------------------------
 
 1. Clone the repository (or download a release archive):
 
-   ```
+   ```bash
    git clone https://github.com/epics-modules/busy.git
    ```
 
@@ -62,7 +63,7 @@ GitHub repository:
 
 3. Build:
 
-   ```
+   ```bash
    make
    ```
 

@@ -5,8 +5,14 @@ nav_order: 3
 ---
 
 
-busy Release Notes
-==================
+# busy Release Notes
+{: .no_toc}
+
+## Table of contents
+{: .no_toc .text-delta}
+
+- TOC
+{:toc}
 
 Release 1-7-4
 -------------
