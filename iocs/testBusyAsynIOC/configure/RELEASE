@@ -1,15 +1,10 @@
 # RELEASE - Location of external support modules
 
-# Use BUSY_TOP to avoid being clobbered by the BUSY definition
-# in the parent module's configure/RELEASE.
-BUSY_TOP = $(TOP)/../..
+BUSY = $(TOP)/../..
 
 # Pull in dependency paths (ASYN, AUTOSAVE, EPICS_BASE) from the parent module.
--include $(BUSY_TOP)/configure/RELEASE
--include $(BUSY_TOP)/configure/RELEASE.local
-
-# Set BUSY for use by the build system (cfg-deps, database paths, etc.)
-BUSY = $(BUSY_TOP)
+-include $(TOP)/../../configure/RELEASE
+-include $(TOP)/../../configure/RELEASE.local
 
 # These lines allow developers to override these RELEASE settings
 # without having to modify this file directly.
