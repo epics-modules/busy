@@ -5,32 +5,22 @@
 #include <busyRecord.h>
 #include <epicsExport.h>
 
-static long init_record();
-static long write_busy();
+static long init_record(struct dbCommon *pcommon);
+static long write_busy(busyRecord *pbusy);
 
-struct {
-   long 	   number;
-   DEVSUPFUN   report;
-   DEVSUPFUN   init;
-   DEVSUPFUN   init_record;
-   DEVSUPFUN   get_ioint_info;
-   DEVSUPFUN   write_busy;
-}devBusySoftRaw={
-   5,
-   NULL,
-   NULL,
-   init_record,
-   NULL,
-   write_busy
+busydset devBusySoftRaw = {
+    {5, NULL, NULL, init_record, NULL},
+    write_busy
 };
-epicsExportAddress(dset,devBusySoftRaw);
+epicsExportAddress(dset, devBusySoftRaw);
 
-static long init_record(busyRecord *pbusy)
+static long init_record(struct dbCommon *pcommon)
 {
-	return 2; /* dont convert */
+    (void)pcommon;
+    return 2; /* dont convert */
 }
 
 static long write_busy(busyRecord *pbusy)
 {
-	return dbPutLink(&pbusy->out,DBR_LONG,&pbusy->rval,1);
+    return dbPutLink(&pbusy->out, DBR_LONG, &pbusy->rval, 1);
 }

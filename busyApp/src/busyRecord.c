@@ -82,15 +82,6 @@ rset busyRSET={
 };
 epicsExportAddress(rset,busyRSET);
 
-struct busydset { /* busyRecord dset */
-    long         number;
-    DEVSUPFUN    dev_report;
-    DEVSUPFUN    init;
-    DEVSUPFUN    init_record;  /*returns:(0,2)=>(success,success no convert*/
-    DEVSUPFUN    get_ioint_info;
-    DEVSUPFUN    write_busy;/*returns: (-1,0)=>(failure,success)*/
-};
-
 
 /* control block for callback*/
 typedef struct myCallback {
@@ -127,7 +118,7 @@ static void myCallbackFunc(CALLBACK *arg)
 static long init_record(dbCommon *pcommon, int pass)
 {
     busyRecord *prec = (busyRecord *) pcommon;
-    struct busydset *pdset;
+    busydset *pdset;
     long status=0;
     myCallback *pcallback;
 
@@ -138,12 +129,12 @@ static long init_record(dbCommon *pcommon, int pass)
         recGblInitConstantLink(&prec->siml,DBF_USHORT,&prec->simm);
     }
 
-    if(!(pdset = (struct busydset *)(prec->dset))) {
+    if(!(pdset = (busydset *)(prec->dset))) {
         recGblRecordError(S_dev_noDSET,(void *)prec,"busy: init_record");
         return(S_dev_noDSET);
     }
     /* must have  write_busy functions defined */
-    if( (pdset->number < 5) || (pdset->write_busy == NULL) ) {
+    if( (pdset->common.number < 5) || (pdset->write_busy == NULL) ) {
         recGblRecordError(S_dev_missingSup,(void *)prec,"busy: init_record");
         return(S_dev_missingSup);
     }
@@ -164,8 +155,8 @@ static long init_record(dbCommon *pcommon, int pass)
     callbackSetUser(pcallback,&pcallback->callback);
     pcallback->precord = (struct dbCommon *)prec;
 
-    if( pdset->init_record ) {
-        status=(*pdset->init_record)(prec);
+    if( pdset->common.init_record ) {
+        status=(*pdset->common.init_record)(pcommon);
         if(status==0) {
             if(prec->rval==0) prec->val = 0;
             else prec->val = 1;
@@ -183,7 +174,7 @@ static long init_record(dbCommon *pcommon, int pass)
 static long process(dbCommon *pcommon)
 {
     busyRecord *prec = (busyRecord *) pcommon;
-    struct busydset    *pdset = (struct busydset *)(prec->dset);
+    busydset    *pdset = (busydset *)(prec->dset);
     long         status=0;
     unsigned char    pact=prec->pact;
 
@@ -389,7 +380,7 @@ static void monitor(busyRecord *prec)
 static long writeValue(busyRecord *prec)
 {
     long        status;
-    struct      busydset *pdset = (struct busydset *) (prec->dset);
+    busydset    *pdset = (busydset *) (prec->dset);
 
     if (prec->pact == TRUE){
         status=(*pdset->write_busy)(prec);
