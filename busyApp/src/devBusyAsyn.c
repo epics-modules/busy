@@ -114,21 +114,13 @@ static int  getCallbackValue(devPvt *pPvt);
 static void interruptCallbackOutput(void *drvPvt, asynUser *pasynUser,
                 epicsInt32 value);
 
-static long initBusy(busyRecord *pr);
+static long initBusy(struct dbCommon *pcommon);
 static long processBusy(busyRecord *pr);
 
-typedef struct analogDset { /* analog  dset */
-    long          number;
-    DEVSUPFUN     dev_report;
-    DEVSUPFUN     init;
-    DEVSUPFUN     init_record;
-    DEVSUPFUN     get_ioint_info;
-    DEVSUPFUN     processCommon;/*(0)=>(success ) */
-    DEVSUPFUN     special_linconv;
-} analogDset;
-
-analogDset asynBusyInt32 = {
-    5, 0, 0, initBusy, 0, processBusy };
+busydset asynBusyInt32 = {
+    {5, NULL, NULL, initBusy, NULL},
+    processBusy
+};
 
 epicsExportAddress(dset, asynBusyInt32);
 
@@ -453,8 +445,9 @@ static void reportQueueRequestStatus(devPvt *pPvt, asynStatus status)
 }
 
 
-static long initBusy(busyRecord *pr)
+static long initBusy(struct dbCommon *pcommon)
 {
+    busyRecord *pr = (busyRecord *) pcommon;
     devPvt *pPvt;
     int status;
     epicsInt32 value;

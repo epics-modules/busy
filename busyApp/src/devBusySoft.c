@@ -24,38 +24,22 @@
 #include "busyRecord.h"
 #include "epicsExport.h"
 
-static long init_record();
-
 /* Create the dset for devBusySoft */
-static long write_busy();
+static long init_record(struct dbCommon *pcommon);
+static long write_busy(busyRecord *pbusy);
 
-struct {
-	long		number;
-	DEVSUPFUN	report;
-	DEVSUPFUN	init;
-	DEVSUPFUN	init_record;
-	DEVSUPFUN	get_ioint_info;
-	DEVSUPFUN	write_busy;
-}devBusySoft={
-	5,
-	NULL,
-	NULL,
-	init_record,
-	NULL,
-	write_busy
+busydset devBusySoft = {
+    {5, NULL, NULL, init_record, NULL},
+    write_busy
 };
-epicsExportAddress(dset,devBusySoft);
-
-static long init_record(busyRecord *pbusy)
+epicsExportAddress(dset, devBusySoft);
+
+static long init_record(struct dbCommon *pcommon)
 {
- 
-   long status=0;
- 
-    /* dont convert */
-   status=2;
-   return status;
- 
-} /* end init_record() */
+   (void)pcommon;
+   /* don't convert */
+   return 2;
+}
 
 static long write_busy(busyRecord *pbusy)
 {

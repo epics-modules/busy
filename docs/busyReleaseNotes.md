@@ -14,6 +14,17 @@ nav_order: 3
 - TOC
 {:toc}
 
+Release 1-7-5
+-------------
+
+Device and record support tables now use the typed `dset` / `drvet` / `rset`
+forms (`USE_TYPED_RSET` / `USE_TYPED_DSET` / `USE_TYPED_DRVET`), eliminating
+the legacy `DEVSUPFUN` casts that newer C and C++ toolchains reject. The busy
+record now defines `busydset` (with `HAS_busydset` guard) so downstream device
+support can use the typed form. The module continues to build against
+EPICS Base 3.15 and later via the `#ifndef HAS_busydset` fallback typedef in
+each device-support source file. No public API changes.
+
 Release 1-7-4
 -------------
 
